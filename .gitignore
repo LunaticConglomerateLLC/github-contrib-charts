@@ -1,0 +1,10 @@
+.opencode
+
+
+
+.specify/**/*
+!.specify/
+!.specify/memory/
+!.specify/memory/constitution.md
+
+.serena
