@@ -1,0 +1,24 @@
+{
+  "name": "@wearelunatic/github-contrib-charts",
+  "version": "0.0.0",
+  "private": false,
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.1.10",
+    "turbo": "2.10.10",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}

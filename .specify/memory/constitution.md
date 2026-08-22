@@ -1,10 +1,13 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.0.0 → 1.1.0
-Modified principles: None
+Version change: 1.0.0 → 1.1.0 → 1.2.0
+Modified principles:
+  - v1.2.0: I. Monorepo with Separable Packages — single published package delivery
+    (2026-08-22 user decision: one npm package with root + /cli entries and bin;
+    modular source layout retained)
 Added sections:
-  - VI. Living Documentation (new principle)
+  - VI. Living Documentation (v1.1.0, new principle)
 Removed sections: None
 Follow-up TODOs: None — all placeholders resolved
 -->
@@ -15,10 +18,13 @@ Follow-up TODOs: None — all placeholders resolved
 
 ### I. Monorepo with Separable Packages
 
-Every deliverable lives in a single monorepo with independently publishable, self-contained
-packages. Each package MUST have a clear, single responsibility. The approved architecture
-(`@scope/core`, `@scope/react`, `@scope/cli`) is the canonical decomposition. No new
-package may be introduced without a documented purpose and spec approval.
+Every deliverable lives in a single monorepo. Source MUST stay modular with clear, single-
+responsibility modules (data fetching/grids/stats, React UI, CLI). Delivery ships as ONE
+published npm package whose root entry exposes the data layer and React components, plus a
+bin entry for the CLI and a `/cli` subpath for its programmatic API. Internal module
+boundaries remain mandatory; no new top-level modules may be introduced without a documented
+purpose and spec approval. *(Amended 2026-08-22 from independently publishable packages to
+single-package delivery per owner decision.)*
 
 ### II. TypeScript Mandatory
 
