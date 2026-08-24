@@ -26,10 +26,9 @@ describe('ConfigPanel', () => {
     expect(screen.getByLabelText(/token/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/layout/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/weeks/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/history/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/theme/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/shape/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/days back/i)).toBeInTheDocument();
   });
 
   it('calls callbacks when values change', () => {
@@ -79,7 +78,7 @@ describe('ConfigPanel', () => {
         onTokenChange={() => {}}
         username=""
         onUsernameChange={() => {}}
-        layout="n-by-7"
+        layout="13-by-4"
         onLayoutChange={() => {}}
         weeks={52}
         onWeeksChange={weeksSpy}
@@ -115,7 +114,7 @@ describe('ConfigPanel', () => {
         onDaysChange={daysSpy}
       />,
     );
-    fireEvent.change(screen.getByLabelText(/days back/i), { target: { value: '30' } });
+    fireEvent.change(screen.getByLabelText(/history/i), { target: { value: '30' } });
     expect(daysSpy).toBeDefined();
   });
 });

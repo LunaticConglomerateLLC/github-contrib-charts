@@ -15,6 +15,10 @@ export function Preview({ token, username, layout, weeks, theme, shape, days: da
   const [days, setDays] = useState<ContributionDay[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // N×7 is day-based: daysBack drives fetch and grid (7 rows, columns = ceil(days/7)).
+  // 13×4 is week-based: weeks drives fetch (weeks*7 days) and the condensed 13×4 grid.
+  const fetchDays = layout === 'n-by-7' ? daysBack : weeks * 7;
+
   useEffect(() => {
     if (!token || !username) {
       setDays(null);
@@ -26,7 +30,7 @@ export function Preview({ token, username, layout, weeks, theme, shape, days: da
     setError(null);
     const to = new Date();
     const from = new Date(to);
-    from.setDate(from.getDate() - daysBack);
+    from.setDate(from.getDate() - fetchDays);
     fetchContributions(token, username, { from, to })
       .then((d: ContributionDay[]) => {
         if (!cancelled) setDays(d);
@@ -37,7 +41,7 @@ export function Preview({ token, username, layout, weeks, theme, shape, days: da
     return () => {
       cancelled = true;
     };
-  }, [token, username, daysBack]);
+  }, [token, username, fetchDays]);
 
   if (!token || !username) {
     return <p style={{ color: '#777' }}>Enter a token and username to preview the chart.</p>;
@@ -52,7 +56,7 @@ export function Preview({ token, username, layout, weeks, theme, shape, days: da
   }
 
   const gridLayout: GridLayoutConfig =
-    layout === '13-by-4' ? { type: '13-by-4' } : { type: 'n-by-7', weeks };
+    layout === '13-by-4' ? { type: '13-by-4', weeks } : { type: 'n-by-7', weeks: Math.max(1, Math.ceil(fetchDays / 7)) };
 
   return (
     <div data-testid="preview">

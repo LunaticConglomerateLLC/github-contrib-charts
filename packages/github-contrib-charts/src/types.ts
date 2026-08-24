@@ -35,7 +35,7 @@ export interface DateRange {
 /** Grid layout configuration. */
 export type GridLayoutConfig =
   | { type: 'n-by-7'; weeks: number }
-  | { type: '13-by-4' };
+  | { type: '13-by-4'; weeks?: number };
 
 /** A single cell in the computed contribution grid. */
 export interface GridCell {
