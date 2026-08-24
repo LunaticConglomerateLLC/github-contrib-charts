@@ -1,7 +1,7 @@
 {
-  "name": "github-contribution-demo",
+  "name": "github-contrib-charts-demo",
   "version": "0.0.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "description": "Demo site for the GitHub contribution charts library",
   "scripts": {
@@ -13,7 +13,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@wearelunatic/github-contrib-charts": "workspace:*",
     "@wearelunatic/github-contrib-charts": "workspace:*",
     "react": "19.2.8",
     "react-dom": "19.2.8"
