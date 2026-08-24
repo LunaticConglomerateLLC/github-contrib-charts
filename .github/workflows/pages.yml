@@ -38,8 +38,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build demo site
-        run: pnpm run --filter ./demo build
+      - name: Build
+        run: pnpm build
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
