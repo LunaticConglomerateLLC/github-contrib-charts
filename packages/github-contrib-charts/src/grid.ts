@@ -33,7 +33,7 @@ export function computeGrid(days: ContributionDay[], layout: GridLayoutConfig): 
   if (layout.type === 'n-by-7') {
     return computeNBy7(days, layout.weeks);
   }
-  return compute13By4(days);
+  return compute13By4(days, layout.weeks ?? 52);
 }
 
 function computeNBy7(days: ContributionDay[], weeks: number): ContributionGrid {
@@ -46,10 +46,13 @@ function computeNBy7(days: ContributionDay[], weeks: number): ContributionGrid {
     if (d.contributionCount > maxCount) maxCount = d.contributionCount;
   }
 
-  // Determine the week containing the first day, anchored on Sunday.
-  const first = new Date(days[0]!.date);
-  const sunday = new Date(first);
-  sunday.setUTCDate(first.getUTCDate() - weekday(first));
+  // Anchor on the most recent week so `weeks` always shows the latest data,
+  // not the oldest. This keeps the demo intuitive when `weeks` < fetched range.
+  const last = new Date(days[days.length - 1]!.date);
+  const sundayOfLast = new Date(last);
+  sundayOfLast.setUTCDate(last.getUTCDate() - weekday(last));
+  const sunday = new Date(sundayOfLast);
+  sunday.setUTCDate(sundayOfLast.getUTCDate() - (weeks - 1) * 7);
 
   const cells: GridCell[][] = [];
   let total = 0;
@@ -77,17 +80,21 @@ function computeNBy7(days: ContributionDay[], weeks: number): ContributionGrid {
   return { cells, rows: 7, columns: weeks, layout: 'n-by-7', totalContributions: total };
 }
 
-function compute13By4(days: ContributionDay[]): ContributionGrid {
+function compute13By4(days: ContributionDay[], weeks: number): ContributionGrid {
+  if (weeks < 1 || weeks > 52) throw new RangeError('weeks must be between 1 and 52 for 13-by-4');
+
   const byDate = new Map<string, ContributionDay>();
   for (const d of days) byDate.set(isoDay(d.date), d);
 
-  // Anchor the year on the first day's Sunday, then produce 52 weekly blocks.
-  const first = new Date(days[0]!.date);
-  const sunday = new Date(first);
-  sunday.setUTCDate(first.getUTCDate() - weekday(first));
+  // Build the most recent `weeks` weekly blocks, anchored on the last day's Sunday.
+  const last = new Date(days[days.length - 1]!.date);
+  const sundayOfLast = new Date(last);
+  sundayOfLast.setUTCDate(last.getUTCDate() - weekday(last));
+  const sunday = new Date(sundayOfLast);
+  sunday.setUTCDate(sundayOfLast.getUTCDate() - (weeks - 1) * 7);
 
   const weeklyBlocks: { from: Date; to: Date; count: number }[] = [];
-  for (let w = 0; w < 52; w++) {
+  for (let w = 0; w < weeks; w++) {
     let count = 0;
     const weekFrom = new Date(sunday);
     weekFrom.setUTCDate(sunday.getUTCDate() + w * 7);
@@ -104,25 +111,36 @@ function compute13By4(days: ContributionDay[]): ContributionGrid {
   let maxCount = 0;
   for (const b of weeklyBlocks) if (b.count > maxCount) maxCount = b.count;
 
-  const cells: GridCell[][] = [];
+  // Layout: 4 rows. Most recent week (w1) at bottom-right, then up to top-right,
+  // then next column to the left, etc. Example with 12 weeks (3 cols):
+  //   w12 w8 w4
+  //   w11 w7 w3
+  //   w10 w6 w2
+  //   w09 w5 w1
+  const columns = Math.ceil(weeks / 4);
+  const cells: GridCell[][] = Array.from({ length: 4 }, () =>
+    Array.from({ length: columns }, () => ({
+      date: null as Date | null,
+      dateRange: null as { from: Date; to: Date } | null,
+      contributionCount: 0,
+      contributionLevel: 'NONE' as ContributionLevel,
+    })),
+  );
   let total = 0;
 
-  // 4 rows (quarters), each row covering 13 consecutive weeks.
-  for (let quarter = 0; quarter < 4; quarter++) {
-    const row: GridCell[] = [];
-    for (let col = 0; col < 13; col++) {
-      const weekIndex = quarter * 13 + col;
-      const block = weeklyBlocks[weekIndex]!;
-      total += block.count;
-      row.push({
-        date: null,
-        dateRange: { from: block.from, to: block.to },
-        contributionCount: block.count,
-        contributionLevel: levelFor(block.count, maxCount),
-      });
-    }
-    cells.push(row);
+  for (let w = 0; w < weeks; w++) {
+    const weekNumber = w + 1; // 1 = most recent
+    const col = columns - 1 - Math.floor((weekNumber - 1) / 4);
+    const row = 3 - ((weekNumber - 1) % 4);
+    const displayBlock = weeklyBlocks[weeks - 1 - w]!;
+    total += displayBlock.count;
+    cells[row]![col]! = {
+      date: null,
+      dateRange: { from: displayBlock.from, to: displayBlock.to },
+      contributionCount: displayBlock.count,
+      contributionLevel: levelFor(displayBlock.count, maxCount),
+    };
   }
 
-  return { cells, rows: 4, columns: 13, layout: '13-by-4', totalContributions: total };
+  return { cells, rows: 4, columns, layout: '13-by-4', totalContributions: total };
 }

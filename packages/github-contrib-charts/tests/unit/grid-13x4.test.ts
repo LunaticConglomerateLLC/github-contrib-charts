@@ -40,17 +40,29 @@ describe('computeGrid 13-by-4', () => {
     grid.cells.forEach((row) => expect(row).toHaveLength(13));
   });
 
-  it('aggregates each cell to a full week of 7 days', () => {
+  it('aggregates each cell to a full week of 7 days (current week bottom-right)', () => {
     const grid = computeGrid(buildYear(), { type: '13-by-4' });
 
-    // Row 0 (Q1) col 0 = week 1 (days 0..6) => sum = 0+1+2+3+4+5+6 = 21
+    // Oldest week at top-left, most recent at bottom-right
+    // Top-left (0,0) = week 1 (w0) sum 21
     expect(grid.cells[0]![0]!.contributionCount).toBe(21);
-    // Row 0 col 1 = week 2 (days 7..13) => sum = 7*7 + 21 = 70
-    expect(grid.cells[0]![1]!.contributionCount).toBe(70);
-    // Q1 has 13 weeks, so col 12 = week 13 (days 84..90)
-    expect(grid.cells[0]![12]!.contributionCount).toBe(84 * 7 + 21);
-    // Q2 (row 1) col 0 = week 14
-    expect(grid.cells[1]![0]!.contributionCount).toBe(13 * 7 * 7 + 21);
+    // Bottom-right (3,12) = most recent week (w51) sum = 49*51+21 = 2520
+    expect(grid.cells[3]![12]!.contributionCount).toBe(49 * 51 + 21);
+    // Top-right (0,12) = 4th most recent (w48) sum = 49*48+21 = 2373
+    expect(grid.cells[0]![12]!.contributionCount).toBe(49 * 48 + 21);
+    // Bottom-left (3,0) = 4th oldest group bottom: week 4 (w3) sum = 49*3+21 = 168
+    expect(grid.cells[3]![0]!.contributionCount).toBe(49 * 3 + 21);
+  });
+
+  it('produces a compact grid when weeks < 52 (example: 12 weeks -> 3×4)', () => {
+    const grid = computeGrid(buildYear().slice(-84), { type: '13-by-4', weeks: 12 }); // last 12 weeks
+    expect(grid.rows).toBe(4);
+    expect(grid.columns).toBe(3);
+    // Layout per spec: w12 w8 w4 / w11 w7 w3 / w10 w6 w2 / w09 w5 w1
+    // Bottom-right w1 is most recent week
+    expect(grid.cells[3]![2]!.contributionCount).toBeGreaterThan(0);
+    // Top-left w12 is oldest among the 12
+    expect(grid.cells[0]![0]!.contributionCount).toBeGreaterThan(0);
   });
 
   it('totalContributions matches full year sum', () => {

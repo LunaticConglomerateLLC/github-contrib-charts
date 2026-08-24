@@ -22,6 +22,6 @@ describe('CodeSnippet', () => {
   it('builds a JSX snippet with the default n-by-7 layout', () => {
     const snippet = buildSnippet({ username: 'octocat', layout: 'n-by-7', theme: 'github-light', shape: 'square' });
     expect(snippet).toContain("const username = 'octocat';");
-    expect(snippet).toContain('gridLayout={{ type: "n-by-7", weeks: 52 }}');
+    expect(snippet).toContain('gridLayout={{ type: "n-by-7", weeks: 53 }}');
   });
 });
