@@ -5,12 +5,8 @@ preview a chart; the token stays in the browser tab.
 
 ## Shape controls
 
-- **Geometry** toggles between the two chart shapes:
-  - **Rectangular (7 rows)**: GitHub-style week-aligned grid. The *History (days)* input
-    (1–366) controls how far back the chart goes.
-  - **Square (N×N)**: compact row-major badge. The *Size* input (1–19) sets N; the window is
-    N² days.
-- Switching geometry preserves the values of the inactive mode.
+- **Rectangular** — two modes: *week-aligned* (GitHub-style, *History (days)* 1–366, default 364 = 52 weeks) and *custom* (*Rows* 1–366 default 7, *Columns* 1–366 default 52; product ≤366, partial dimension defaults to 7×52, e.g. 4×30 = 120 days). Custom grids are column-major GitHub-week (`idx=col*rows+row`) bottom-right pinned (7×4 28 →6×4 24 transpose, 01 pinned), 1 day per cell. Use `rows==columns` (e.g. 7×7) to replace the removed square mode.
+- Changing *Rows*/*Columns* updates the preview within 500 ms and regenerates the snippet (e.g. `<ContributionChart shape="rectangular" rows={4} columns={30} />`).
 - The code snippet under "Copy this code" always reflects the current shape.
 
 ## Development

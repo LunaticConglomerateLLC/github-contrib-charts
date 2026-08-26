@@ -89,9 +89,9 @@ describe('renderText', () => {
     expect(out).toContain('Grid (1×2, n-by-7):');
   });
 
-  it('uses a rectangular 365-day chart by default and keeps deprecated layouts working', async () => {
+  it('uses a rectangular 364-day chart by default and keeps deprecated layouts working', async () => {
     await renderText('octocat', { token: 'tok' });
-    expect(coreMock.computeGrid).toHaveBeenCalledWith(days, { shape: 'rectangular', days: 365 });
+    expect(coreMock.computeGrid).toHaveBeenCalledWith(days, { shape: 'rectangular', days: 364 });
     await renderText('octocat', { token: 'tok', layout: '13-by-4' });
     expect(coreMock.computeGrid).toHaveBeenLastCalledWith(days, {
       type: '13-by-4',
@@ -136,5 +136,32 @@ describe('formatText glyphs', () => {
     expect(out).toContain('▓▓');
     expect(out).toContain('██');
     expect(out).toContain('Period: 2025-01-01 to 2026-01-01');
+  });
+});
+
+describe('renderText custom rows×columns (T020)', () => {
+  it('renders exactly 4 lines × 30 cells for a 4×30 grid', () => {
+    const grid4x30: ContributionGrid = {
+      cells: Array.from({ length: 4 }, () =>
+        Array.from({ length: 30 }, () => ({
+          date: new Date('2025-01-01T00:00:00Z'),
+          dateRange: null,
+          contributionCount: 1,
+          contributionLevel: 'FIRST_QUARTILE' as const,
+        })),
+      ),
+      rows: 4,
+      columns: 30,
+      layout: 'rectangular',
+      totalContributions: 120,
+    };
+    const out = formatText('octocat', stats, grid4x30);
+    expect(out).toContain('Grid (4×30, rectangular):');
+    // grid section is after the header line; split and count
+    const gridSection = out.split('Grid (4×30, rectangular):\n')[1]!;
+    const lines = gridSection.split('\n');
+    expect(lines).toHaveLength(4);
+    // each line has 30 cells × 2 chars = 60 chars
+    for (const line of lines) expect(line.length).toBe(60);
   });
 });

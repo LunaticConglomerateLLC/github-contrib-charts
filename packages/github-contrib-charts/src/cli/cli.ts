@@ -19,13 +19,12 @@ const GLYPH_SHAPES = ['circle', 'square', 'rounded-rect'] as const;
 
 function toCliOptions(raw: Record<string, unknown>): CliOptions {
   const shapeRaw = typeof raw.shape === 'string' ? raw.shape : undefined;
-  // --shape doubles as a geometry alias for rectangular/square values.
-  const geometryAlias =
-    shapeRaw === 'rectangular' || shapeRaw === 'square' ? shapeRaw : undefined;
+  // --shape doubles as a geometry alias for rectangular values (square removed per FR-017).
+  const geometryAlias = shapeRaw === 'rectangular' ? shapeRaw : undefined;
   const glyph = shapeRaw !== undefined && (GLYPH_SHAPES as readonly string[]).includes(shapeRaw)
     ? (shapeRaw as (typeof GLYPH_SHAPES)[number])
     : undefined;
-  return {
+  const base: CliOptions & Record<string, unknown> = {
     token: typeof raw.token === 'string' ? raw.token : undefined,
     output: typeof raw.output === 'string' ? raw.output : './output',
     geometry:
@@ -33,7 +32,8 @@ function toCliOptions(raw: Record<string, unknown>): CliOptions {
         ? (raw.geometry as CliOptions['geometry'])
         : geometryAlias,
     days: raw.days !== undefined ? Number(raw.days) : undefined,
-    size: raw.size !== undefined ? Number(raw.size) : undefined,
+    rows: raw.rows !== undefined ? Number(raw.rows) : undefined,
+    columns: raw.columns !== undefined ? Number(raw.columns) : undefined,
     weeks: raw.weeks !== undefined ? Number(raw.weeks) : undefined,
     layout: raw.layout === '13-by-4' ? '13-by-4' : raw.layout === 'n-by-7' ? 'n-by-7' : undefined,
     shape: glyph,
@@ -44,6 +44,10 @@ function toCliOptions(raw: Record<string, unknown>): CliOptions {
     theme: raw.theme === 'github-dark' ? 'github-dark' : 'github-light',
     resolution: typeof raw.resolution === 'string' ? raw.resolution : '800x600',
   };
+  // Propagate deprecated square flags for FR-017 removal error (rectangular-only).
+  if (raw.size !== undefined) (base as Record<string, unknown>).size = Number(raw.size);
+  if (raw.geometry === 'square' || shapeRaw === 'square') (base as Record<string, unknown>).geometry = 'square';
+  return base;
 }
 
 /**
@@ -114,14 +118,15 @@ export function buildCli(): Command {
     .option('--output <path>', 'output path prefix for the PNG file (default ./output)')
     .option(
       '--geometry <geometry>',
-      "chart geometry: 'rectangular' or 'square' (default rectangular)",
+      "chart geometry: 'rectangular' (default rectangular) — square removed, use --rows/--columns for 7×7",
     )
-    .option('--days <n>', 'days of history for the rectangular geometry, 1-366 (default 365)')
-    .option('--size <n>', 'edge size N for the square geometry, N x N days, 1-19 (default 10)')
+    .option('--days <n>', 'days of history for the rectangular geometry, 1-366 (default 364)')
+    .option('--rows <n>', 'custom rectangular grid height (rows), 1-366 (default 7 when only columns given; product ≤366)')
+    .option('--columns <n>', 'custom rectangular grid width (columns), 1-366 (default 52 when only rows given; product ≤366)')
     .option('--cell-shape <shape>', "cell glyph shape: 'circle', 'square', or 'rounded-rect' (default square)")
     .option(
       '--shape <shape>',
-      "deprecated: alias of --geometry for 'rectangular'/'square', otherwise cell glyph shape",
+      "deprecated: alias of --geometry for 'rectangular' (square removed: use --rows/--columns for 7×7), otherwise cell glyph shape",
     )
     .option('--theme <theme>', "theme: 'github-light' or 'github-dark' (default github-light)")
     .option('--resolution <WxH>', 'PNG resolution (default 800x600)')

@@ -52,4 +52,10 @@ export type { CellShapeRendererProps } from './shapes.js';
 export { colorFor, GITHUB_LIGHT, GITHUB_DARK, resolveStops } from './theme.js';
 export type { ThemePreset, ColorStop, CellShape, ChartConfig } from './ui-types.js';
 export type { ThemeOption } from './theme.js';
-export { validateChartShapeConfig, validateDays, validateSize } from './errors.js';
+export {
+  validateChartShapeConfig,
+  validateDays,
+  validateRows,
+  validateColumns,
+  validateRectangularDimensions,
+} from './errors.js';

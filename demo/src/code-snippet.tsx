@@ -1,9 +1,7 @@
 export interface SnippetConfig {
   username: string;
-  /** Defaults to 'rectangular'. */
-  geometry?: 'rectangular' | 'square';
-  days?: number;
-  size?: number;
+  rows?: number;
+  columns?: number;
   theme: string;
   shape: string;
 }
@@ -14,17 +12,13 @@ export function buildInstallCommand(): string {
 
 export function buildSnippet({
   username,
-  geometry = 'rectangular',
-  days = 365,
-  size = 10,
+  rows = 7,
+  columns = 52,
   theme,
   shape,
 }: SnippetConfig): string {
-  const fetchDays = geometry === 'square' ? size * size : days;
-  const shapeProps =
-    geometry === 'square'
-      ? ['shape="square"', `      size={${size}}`]
-      : ['shape="rectangular"', `      days={${days}}`];
+  const fetchDays = rows * columns;
+  const shapeProps = ['shape="rectangular"', `rows={${rows}}`, `columns={${columns}}`];
   return [
     'import { fetchContributions, ContributionChart } from "@wearelunatic/github-contrib-charts";',
     '',
@@ -47,8 +41,7 @@ export function buildSnippet({
     '    <ContributionChart',
     '      data={days}',
     '      autoFetch={false}',
-    `      ${shapeProps[0]}`,
-    `      ${shapeProps[1]}`,
+    ...shapeProps.map((p) => `      ${p}`),
     `      colorTheme="${theme}"`,
     `      cellShape="${shape}"`,
     '    />',

@@ -8,7 +8,7 @@ import type {
   GridLayoutConfig,
   NormalizedShapeConfig,
 } from './types.js';
-import { DEFAULT_DAYS, DEFAULT_SIZE } from './types.js';
+import { DEFAULT_COLUMNS, DEFAULT_DAYS, DEFAULT_ROWS } from './types.js';
 import { validateChartShapeConfig, validateDays } from './errors.js';
 
 /** Returns the ISO date string for a Date, or the Date passed in if already normalized. */
@@ -52,32 +52,21 @@ export function resolveShapeConfig(config: ChartShapeConfig): NormalizedShapeCon
   if (isLegacyLayout(config)) {
     if (config.type === 'n-by-7') {
       warnDeprecatedLayout('n-by-7', "use { shape: 'rectangular', days } instead.");
-      return { shape: 'rectangular', days: config.weeks * 7 };
+      return { shape: 'rectangular', geometry: 'weeks', days: config.weeks * 7 };
     }
     warnDeprecatedLayout('13-by-4', 'it is kept for backwards compatibility only.');
-    return { shape: 'rectangular', days: (config.weeks ?? 52) * 7 };
+    return { shape: 'rectangular', geometry: 'weeks', days: (config.weeks ?? 52) * 7 };
   }
   validateChartShapeConfig(config);
-  if (config.shape === 'square') {
-    warnCrossModeParam('square', config, 'days', 'size');
-    return { shape: 'square', size: config.size ?? DEFAULT_SIZE };
+  if (config.rows !== undefined || config.columns !== undefined) {
+    return {
+      shape: 'rectangular',
+      geometry: 'custom',
+      rows: config.rows ?? DEFAULT_ROWS,
+      columns: config.columns ?? DEFAULT_COLUMNS,
+    };
   }
-  warnCrossModeParam('rectangular', config, 'size', 'days');
-  return { shape: 'rectangular', days: config.days ?? DEFAULT_DAYS };
-}
-
-/** Warns when a dimension param for the other shape is present and will be ignored. */
-function warnCrossModeParam(
-  shapeName: 'rectangular' | 'square',
-  config: ChartShapeConfig,
-  otherKey: string,
-  usedKey: string,
-): void {
-  if (otherKey in config) {
-    console.warn(
-      `[github-contrib-charts] '${otherKey}' is ignored for ${shapeName} shapes; use '${usedKey}'.`,
-    );
-  }
+  return { shape: 'rectangular', geometry: 'weeks', days: config.days ?? DEFAULT_DAYS };
 }
 
 /** Total number of days the config's display window covers. */
@@ -86,7 +75,7 @@ export function shapeDayCount(config: ChartShapeConfig): number {
     return config.type === 'n-by-7' ? config.weeks * 7 : (config.weeks ?? 52) * 7;
   }
   const normalized = resolveShapeConfig(config);
-  return normalized.shape === 'square' ? normalized.size * normalized.size : normalized.days;
+  return normalized.geometry === 'weeks' ? normalized.days : normalized.rows * normalized.columns;
 }
 
 /** Shifts a Date by whole days without mutating it. */
@@ -98,7 +87,7 @@ function shiftUTC(d: Date, days: number): Date {
 
 /**
  * Derives the inclusive/exclusive date window a chart shape covers, ending at
- * `anchor`. Rectangular covers `days` days; square covers `size²` days.
+ * `anchor`. Rectangular covers `days` (weeks geometry) or `rows×columns` (custom) days.
  * The anchor is truncated to UTC midnight; `to` is exclusive (`anchor + 1d`).
  */
 export function displayWindow(config: ChartShapeConfig, anchor: Date): DisplayWindow {
@@ -110,8 +99,9 @@ export function displayWindow(config: ChartShapeConfig, anchor: Date): DisplayWi
 /**
  * Computes a contribution grid from daily data using the specified layout.
  *
- * - `rectangular`: each column is a week (Sun–Sat), 7 rows are days of the week.
- * - `square`: size×size row-major grid of size² days.
+ * - `rectangular` weeks: each column is a week (Sun–Sat), 7 rows are days of the week.
+ * - `rectangular` custom: column-major GitHub-week style (idx = col*rows+row),
+ *   bottom-right pinned, transposes when rows change (7×4 28 → 6×4 24).
  * - `n-by-7` (deprecated): legacy rectangular alias via `weeks`.
  * - `13-by-4` (deprecated): 52 weeks condensed into 13 columns × 4 quarterly rows.
  */
@@ -120,8 +110,8 @@ export function computeGrid(days: ContributionDay[], config: ChartShapeConfig): 
 
   if ('shape' in config) {
     const normalized = resolveShapeConfig(config);
-    if (normalized.shape === 'square') {
-      return computeSquare(days, normalized.size);
+    if (normalized.geometry === 'custom') {
+      return computeColumnMajorGrid(days, normalized.rows, normalized.columns);
     }
     return computeRectangular(days, normalized.days);
   }
@@ -184,8 +174,35 @@ function computeRectangular(days: ContributionDay[], dayCount: number): Contribu
   return { cells, rows: 7, columns, layout: 'rectangular', totalContributions: total };
 }
 
-/** Square layout: size×size row-major grid of size² days, most recent at bottom-right. */
-function computeSquare(days: ContributionDay[], size: number): ContributionGrid {
+/**
+ * Column-major GitHub-week style grid for custom rectangular layouts:
+ * each column holds `rows` consecutive days top-to-bottom, columns run
+ * left-to-right oldest → newest, so bottom-right is always the most recent
+ * day (pinned). Transposes when row count changes, matching GH behavior:
+ * 7×4 (28) → 6×4 (24) drops the earliest 4 days and reflows columns,
+ * keeping 01 pinned bottom-right. Example 7×4:
+ *   28 21 14 07
+ *   27 20 13 06
+ *   26 19 12 05
+ *   25 18 11 04
+ *   24 17 10 03
+ *   23 16 09 02
+ *   22 15 08 01
+ * 6×4:
+ *   24 18 12 06
+ *   23 17 11 05
+ *   22 16 10 04
+ *   21 15 09 03
+ *   20 14 08 02
+ *   19 13 07 01
+ * Cells without data (young accounts) are padded at the earliest
+ * positions (smallest idx) with `date: null`, count 0, level NONE.
+ */
+function computeColumnMajorGrid(
+  days: ContributionDay[],
+  rows: number,
+  columns: number,
+): ContributionGrid {
   const byDate = new Map<string, ContributionDay>();
   let maxCount = 0;
   for (const d of days) {
@@ -193,17 +210,17 @@ function computeSquare(days: ContributionDay[], size: number): ContributionGrid 
     if (d.contributionCount > maxCount) maxCount = d.contributionCount;
   }
 
-  const totalCells = size * size;
+  const totalCells = rows * columns;
   const last = utcMidnight(days[days.length - 1]!.date);
   const firstCellMs = last.getTime() - (totalCells - 1) * DAY_MS;
 
   const cells: GridCell[][] = [];
   let total = 0;
 
-  for (let row = 0; row < size; row++) {
+  for (let row = 0; row < rows; row++) {
     const gridRow: GridCell[] = [];
-    for (let col = 0; col < size; col++) {
-      const idx = row * size + col; // row-major: earliest top-left, most recent bottom-right
+    for (let col = 0; col < columns; col++) {
+      const idx = col * rows + row; // column-major GH week: bottom-right pinned
       const cellDate = new Date(firstCellMs + idx * DAY_MS);
       const data = byDate.get(isoDay(cellDate));
       const count = data?.contributionCount ?? 0;
@@ -218,7 +235,7 @@ function computeSquare(days: ContributionDay[], size: number): ContributionGrid 
     cells.push(gridRow);
   }
 
-  return { cells, rows: size, columns: size, layout: 'square', totalContributions: total };
+  return { cells, rows, columns, layout: 'rectangular', totalContributions: total };
 }
 
 function computeNBy7(days: ContributionDay[], weeks: number): ContributionGrid {

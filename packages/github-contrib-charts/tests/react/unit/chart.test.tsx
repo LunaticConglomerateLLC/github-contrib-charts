@@ -294,10 +294,10 @@ describe('ContributionChart rectangular shape (US1)', () => {
   });
 });
 
-describe('ContributionChart square shape (US2)', () => {
-  function days100(): ContributionDay[] {
+describe('ContributionChart rectangular 7×7 via rows/columns (FR-017: square removed, use rows==columns)', () => {
+  function days49(): ContributionDay[] {
     const start = new Date('2023-09-29T00:00:00Z');
-    return Array.from({ length: 100 }, (_, i) => {
+    return Array.from({ length: 49 }, (_, i) => {
       const dt = new Date(start);
       dt.setUTCDate(start.getUTCDate() + i);
       return {
@@ -312,39 +312,98 @@ describe('ContributionChart square shape (US2)', () => {
     });
   }
 
-  it('renders 100 cells with equal proportions for size=10', () => {
+  it('renders 49 cells with 7×7 proportions for rows=7 columns=7 (square replacement)', () => {
     const { container } = render(
       <ContributionChart
-        data={days100()}
+        data={days49()}
         autoFetch={false}
-        shape="square"
-        size={10}
+        shape="rectangular"
+        rows={7}
+        columns={7}
         cellShape="square"
         colorTheme="github-light"
         showLegend={false}
         showStats={false}
       />,
     );
-    expect(container.querySelectorAll('[data-cell]')).toHaveLength(100);
+    expect(container.querySelectorAll('[data-cell]')).toHaveLength(49);
     const svg = container.querySelector('[data-testid="chart-svg"]')!;
     expect(svg.getAttribute('width')).toBe(svg.getAttribute('height'));
-    expect(svg.getAttribute('width')).toBe('153'); // 10*(12+3)+3
+    expect(svg.getAttribute('width')).toBe('108'); // 7*(12+3)+3
   });
 
-  it('throws a RangeError for out-of-bounds size', () => {
+  it('throws a RangeError for square shape (removed per FR-017)', () => {
     expect(() =>
       render(
+        // @ts-expect-error square removed per FR-017
         <ContributionChart
-          data={days100()}
+          data={days49()}
           autoFetch={false}
           shape="square"
-          size={25}
           cellShape="square"
           colorTheme="github-light"
           showLegend={false}
           showStats={false}
         />,
       ),
-    ).toThrow(/size must be an integer between 1 and 19/);
+    ).toThrow(/square mode removed/i);
+  });
+});
+
+describe('ContributionChart: custom rectangular props', () => {
+  it('renders exactly rows × columns cells for rows=4 columns=30', () => {
+    const days = buildDays();
+    // Pad to 30 trailing days so the 4×30 window has data at its end.
+    const start = new Date('2025-12-28T00:00:00Z').getTime();
+    const full = Array.from({ length: 120 }, (_, i) => {
+      const iso = new Date(start + (i + 90) * 86_400_000).toISOString().slice(0, 10);
+      return (
+        days[i % 7] ?? {
+          date: new Date(`${iso}T00:00:00Z`),
+          contributionCount: i,
+          contributionLevel: 'FIRST_QUARTILE' as const,
+          commitCount: 0,
+          pullRequestCount: 0,
+          issueCount: 0,
+          reviewCount: 0,
+        }
+      );
+    });
+    const { container } = render(
+      <ContributionChart
+        data={full}
+        autoFetch={false}
+        shape="rectangular"
+        rows={4}
+        columns={30}
+        cellShape="square"
+        colorTheme="github-light"
+        showLegend
+        showStats={false}
+      />,
+    );
+    expect(container.querySelectorAll('[data-cell]')).toHaveLength(120);
+    const svg = container.querySelector('svg')!;
+    // width = columns * (12+3) + 3; height = rows * (12+3) + 3 (+24 legend)
+    expect(svg.getAttribute('width')).toBe(String(30 * 15 + 3));
+    expect(svg.getAttribute('height')).toBe(String(4 * 15 + 3 + 24));
+  });
+
+  it('keeps tooltips and legend behaviour with custom geometry', () => {
+    const { container } = render(
+      <ContributionChart
+        data={buildDays()}
+        autoFetch={false}
+        shape="rectangular"
+        rows={1}
+        columns={7}
+        cellShape="square"
+        colorTheme="github-light"
+        showLegend
+        showStats={false}
+      />,
+    );
+    expect(container.querySelectorAll('[data-cell]')).toHaveLength(7);
+    expect(container.textContent).toContain('Less');
   });
 });

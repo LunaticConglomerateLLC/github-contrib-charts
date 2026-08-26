@@ -130,17 +130,21 @@ describe('computeGrid rectangular validation', () => {
   it('rejects unknown shapes', () => {
     expect(() =>
       computeGrid(daysEndingAt(10), { shape: 'hexagon' } as never),
-    ).toThrow("shape must be 'rectangular' or 'square'");
+    ).toThrow(/shape must be 'rectangular'/);
   });
 });
 
-describe('computeGrid square', () => {
-  it.each([1, 5, 7, 10, 19])('size=%i → %i×%i grid with row-major chronological ordering', (size) => {
-    const grid = computeGrid(daysEndingAt(size * size), { shape: 'square', size });
+describe('computeGrid rectangular 7×7 via rows/columns (FR-017: square removed, use rows==columns)', () => {
+  it.each([1, 5, 7, 10, 19])('rows=%i columns=%i → %i×%i grid with column-major chronological ordering', (size) => {
+    const grid = computeGrid(daysEndingAt(size * size), {
+      shape: 'rectangular',
+      rows: size,
+      columns: size,
+    });
 
     expect(grid.rows).toBe(size);
     expect(grid.columns).toBe(size);
-    expect(grid.layout).toBe('square');
+    expect(grid.layout).toBe('rectangular');
 
     const first = grid.cells[0]![0]!;
     const last = grid.cells[size - 1]![size - 1]!;
@@ -149,52 +153,56 @@ describe('computeGrid square', () => {
     expect(iso(last.date)).toBe('2024-01-06');
   });
 
-  it('increments by exactly one day per cell in row-major order', () => {
-    const grid = computeGrid(daysEndingAt(25), { shape: 'square', size: 5 });
-    for (let r = 0; r < 5; r++) {
-      for (let c = 0; c < 4; c++) {
+  it('increments by exactly one day per cell in column-major order (GH week style)', () => {
+    const grid = computeGrid(daysEndingAt(25), { shape: 'rectangular', rows: 5, columns: 5 });
+    for (let c = 0; c < 5; c++) {
+      for (let r = 0; r < 4; r++) {
         const cur = grid.cells[r]![c]!.date!;
-        const next = grid.cells[r]![c + 1]!.date!;
+        const next = grid.cells[r + 1]![c]!.date!;
         expect(next.getTime() - cur.getTime()).toBe(86_400_000);
+      }
+      if (c < 4) {
+        const bottom = grid.cells[4]![c]!.date!;
+        const nextColTop = grid.cells[0]![c + 1]!.date!;
+        expect(nextColTop.getTime() - bottom.getTime()).toBe(86_400_000);
       }
     }
   });
 
   it('does not require weekday alignment', () => {
-    // Anchor is a Saturday; cell [0][0] of a 5x5 window is 2023-12-13, a Wednesday.
-    const grid = computeGrid(daysEndingAt(25), { shape: 'square', size: 5 });
+    // Anchor is a Saturday; cell [0][0] of a 5x5 window is 2023-12-13, a Wednesday (column-major still same start).
+    const grid = computeGrid(daysEndingAt(25), { shape: 'rectangular', rows: 5, columns: 5 });
     expect(grid.cells[0]![0]!.date!.getUTCDay()).toBe(3);
   });
 
-  it('size=1 → single cell showing only the most recent day', () => {
-    const grid = computeGrid(daysEndingAt(1), { shape: 'square', size: 1 });
+  it('rows=1 columns=1 → single cell showing only the most recent day', () => {
+    const grid = computeGrid(daysEndingAt(1), { shape: 'rectangular', rows: 1, columns: 1 });
     expect(grid.rows).toBe(1);
     expect(grid.columns).toBe(1);
     expect(iso(grid.cells[0]![0]!.date)).toBe('2024-01-06');
   });
 
-  it('sums contributions over the N² window', () => {
+  it('sums contributions over the rows×columns window', () => {
     const count = 100;
-    const grid = computeGrid(daysEndingAt(count), { shape: 'square', size: 10 });
+    const grid = computeGrid(daysEndingAt(count), { shape: 'rectangular', rows: 10, columns: 10 });
     expect(grid.totalContributions).toBe((count * (count + 1)) / 2);
   });
 
-  it.each([0, -1, 2.5, 20])('rejects size=%s with a RangeError', (bad) => {
+  it.each([0, -1, 2.5, 400])('rejects rows=%s with a RangeError', (bad) => {
     expect(() =>
-      computeGrid(daysEndingAt(10), { shape: 'square', size: bad as number }),
-    ).toThrow(/size must be an integer between 1 and 19/);
+      computeGrid(daysEndingAt(10), { shape: 'rectangular', rows: bad as number, columns: 5 }),
+    ).toThrow(/rows must be an integer/);
   });
 
-  it('warns and ignores days when given to a square config', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const grid = computeGrid(daysEndingAt(100), {
-      shape: 'square',
-      size: 10,
-      days: 30,
-    } as never);
-    expect(grid.columns).toBe(10); // size wins; days ignored
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
+  it('rejects days when given with rows/columns (FR-017)', () => {
+    expect(() =>
+      computeGrid(daysEndingAt(100), {
+        shape: 'rectangular',
+        rows: 10,
+        columns: 10,
+        days: 30,
+      } as never),
+    ).toThrow(/'days' cannot be combined with 'rows'\/'columns'/);
   });
 });
 
@@ -230,14 +238,14 @@ describe('computeGrid edge cases (polish)', () => {
     expect(rect.totalContributions).toBe(0);
   });
 
-  it('square N=19 covers 361 contiguous days in row-major order', () => {
-    const grid = computeGrid(daysEndingAt(361), { shape: 'square', size: 19 });
+  it('rectangular 19×19 covers 361 contiguous days in column-major order', () => {
+    const grid = computeGrid(daysEndingAt(361), { shape: 'rectangular', rows: 19, columns: 19 });
     expect(grid.rows).toBe(19);
     expect(grid.columns).toBe(19);
     const first = new Date('2023-01-11T00:00:00Z');
     for (let idx = 0; idx < 361; idx += 40) {
-      const r = Math.floor(idx / 19);
-      const c = idx % 19;
+      const r = idx % 19;
+      const c = Math.floor(idx / 19);
       const expected = new Date(first);
       expected.setUTCDate(first.getUTCDate() + idx);
       expect(iso(grid.cells[r]![c]!.date)).toBe(expected.toISOString().slice(0, 10));
@@ -245,11 +253,11 @@ describe('computeGrid edge cases (polish)', () => {
     expect(iso(grid.cells[18]![18]!.date)).toBe('2024-01-06');
   });
 
-  it('identical counts map to identical colours across modes (FR-018)', () => {
+  it('identical counts map to identical colours across rectangular modes (FR-018)', () => {
     const data = daysEndingAt(49);
-    const rect = computeGrid(data, { shape: 'rectangular', days: 49 });
-    const square = computeGrid(data, { shape: 'square', size: 7 });
-    const levelsByDate = (g: typeof rect): Map<string, string> => {
+    const rectWeeks = computeGrid(data, { shape: 'rectangular', days: 49 });
+    const rectCustom = computeGrid(data, { shape: 'rectangular', rows: 7, columns: 7 });
+    const levelsByDate = (g: typeof rectWeeks): Map<string, string> => {
       const map = new Map<string, string>();
       for (const row of g.cells) {
         for (const cell of row) {
@@ -258,13 +266,13 @@ describe('computeGrid edge cases (polish)', () => {
       }
       return map;
     };
-    expect(levelsByDate(square)).toEqual(levelsByDate(rect));
-    expect([...levelsByDate(rect).values()]).toContain('FOURTH_QUARTILE');
+    expect(levelsByDate(rectCustom)).toEqual(levelsByDate(rectWeeks));
+    expect([...levelsByDate(rectWeeks).values()]).toContain('FOURTH_QUARTILE');
   });
 });
 
 describe('grid empty/missing-date semantics', () => {
-  it('padded cells always have count 0, level NONE and date null in both modes', () => {
+  it('padded cells always have count 0, level NONE and date null in both rectangular modes', () => {
     const rect = computeGrid(daysEndingAt(10), { shape: 'rectangular', days: 10 });
     for (let r = 0; r < 4; r++) {
       const cell = rect.cells[r]![0]!;
@@ -273,16 +281,16 @@ describe('grid empty/missing-date semantics', () => {
       expect(cell.date).toBeNull();
       expect(cell.dateRange).toBeNull();
     }
-    const square = computeGrid(daysEndingAt(100), { shape: 'square', size: 10 });
-    for (const row of square.cells) {
+    const rectCustom = computeGrid(daysEndingAt(100), { shape: 'rectangular', rows: 10, columns: 10 });
+    for (const row of rectCustom.cells) {
       for (const cell of row) expect(cell.dateRange).toBeNull();
     }
   });
 
   it('window max of 0 maps every populated day to NONE', () => {
     const zeros = daysEndingAt(7).map((d) => ({ ...d, contributionCount: 0 }));
-    const square = computeGrid(zeros, { shape: 'square', size: 7 });
-    expect(square.cells.flat().every((c) => c.contributionLevel === 'NONE')).toBe(true);
+    const rect = computeGrid(zeros, { shape: 'rectangular', rows: 7, columns: 7 });
+    expect(rect.cells.flat().every((c) => c.contributionLevel === 'NONE')).toBe(true);
   });
 
   it('totalContributions sums populated days only', () => {

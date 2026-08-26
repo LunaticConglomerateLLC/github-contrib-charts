@@ -1,5 +1,13 @@
 import type { ChartShapeConfig } from './types.js';
-import { DEFAULT_DAYS, DEFAULT_SIZE, MAX_DAYS, MAX_SIZE, MIN_DAYS, MIN_SIZE } from './types.js';
+import {
+  DEFAULT_COLUMNS,
+  DEFAULT_DAYS,
+  DEFAULT_ROWS,
+  MAX_DAYS,
+  MIN_COLUMNS,
+  MIN_DAYS,
+  MIN_ROWS,
+} from './types.js';
 
 /** Base error for all contribution chart fetch errors. */
 export class FetchError extends Error {
@@ -52,27 +60,69 @@ export function validateDays(days: number): void {
   }
 }
 
-/** Validates a square edge size, throwing a RangeError when out of bounds. */
-export function validateSize(size: number): void {
-  if (!Number.isInteger(size) || size < MIN_SIZE || size > MAX_SIZE) {
-    throw new RangeError(`size must be an integer between ${MIN_SIZE} and ${MAX_SIZE}`);
+/**
+ * Validates a custom rectangular row count (integer ≥ 1), throwing a
+ * RangeError that names the offending parameter.
+ */
+export function validateRows(rows: number): void {
+  if (!Number.isInteger(rows) || rows < MIN_ROWS || rows > MAX_DAYS) {
+    throw new RangeError(`rows must be an integer between ${MIN_ROWS} and ${MAX_DAYS}`);
   }
 }
 
 /**
- * Validates a chart shape config, throwing a RangeError for unknown shapes or
- * out-of-bounds dimensions.
+ * Validates a custom rectangular column count (integer ≥ 1), throwing a
+ * RangeError that names the offending parameter.
+ */
+export function validateColumns(columns: number): void {
+  if (!Number.isInteger(columns) || columns < MIN_COLUMNS || columns > MAX_DAYS) {
+    throw new RangeError(`columns must be an integer between ${MIN_COLUMNS} and ${MAX_DAYS}`);
+  }
+}
+
+/**
+ * Validates the combined custom rectangular window, throwing a RangeError
+ * when `rows × columns` exceeds the 366-day maximum.
+ */
+export function validateRectangularDimensions(rows: number, columns: number): void {
+  if (rows * columns > MAX_DAYS) {
+    throw new RangeError(`rows * columns must not exceed ${MAX_DAYS} days`);
+  }
+}
+
+/** Error message for combining `days` with explicit rows/columns. */
+const DAYS_CONFLICT_MESSAGE = "'days' cannot be combined with 'rows'/'columns'; use one or the other";
+
+/** Square mode removed per FR-017. */
+const SQUARE_REMOVED_MESSAGE =
+  "square mode removed: use { shape: 'rectangular', rows: N, columns: N } (e.g. rows: 7, columns: 7 for 7×7)";
+
+/**
+ * Validates a chart shape config, throwing a RangeError for unknown shapes,
+ * out-of-bounds dimensions, invalid custom grids, or mutually exclusive
+ * options. Runs synchronously before any network activity.
  */
 export function validateChartShapeConfig(config: ChartShapeConfig): void {
   if ('shape' in config) {
     if (config.shape === 'rectangular') {
+      const hasCustomDimensions = config.rows !== undefined || config.columns !== undefined;
+      if (hasCustomDimensions) {
+        if (config.days !== undefined) {
+          throw new RangeError(DAYS_CONFLICT_MESSAGE);
+        }
+        const rows = config.rows ?? DEFAULT_ROWS;
+        const columns = config.columns ?? DEFAULT_COLUMNS;
+        validateRows(rows);
+        validateColumns(columns);
+        validateRectangularDimensions(rows, columns);
+        return;
+      }
       validateDays(config.days ?? DEFAULT_DAYS);
       return;
     }
-    if (config.shape === 'square') {
-      validateSize(config.size ?? DEFAULT_SIZE);
-      return;
+    if ((config as { shape: string }).shape === 'square') {
+      throw new RangeError(SQUARE_REMOVED_MESSAGE);
     }
-    throw new RangeError("shape must be 'rectangular' or 'square'");
+    throw new RangeError(`shape must be 'rectangular' (${SQUARE_REMOVED_MESSAGE})`);
   }
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeGrid } from '../../src/grid.js';
+import { computeGrid, resolveShapeConfig } from '../../src/grid.js';
+import { validateChartShapeConfig } from '../../src/errors.js';
 import type { ContributionDay } from '../../src/types.js';
 
 function day(date: string, count: number): ContributionDay {
@@ -77,5 +78,65 @@ describe('computeGrid edge cases', () => {
     expect(grid.cells.flat()).toHaveLength(52);
     grid.cells.flat().forEach((c) => expect(c.contributionLevel).toBe('NONE'));
     expect(grid.totalContributions).toBe(0);
+  });
+});
+
+describe('rectangular rows/columns validation', () => {
+  it.each([0, -4, 2.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects rows=%s with a RangeError naming rows',
+    (rows) => {
+      expect(() => validateChartShapeConfig({ shape: 'rectangular', rows })).toThrow(RangeError);
+      expect(() => validateChartShapeConfig({ shape: 'rectangular', rows })).toThrow(/rows/);
+      expect(() => resolveShapeConfig({ shape: 'rectangular', rows })).toThrow(RangeError);
+    },
+  );
+
+  it.each([0, -1, 7.25, Number.NaN])(
+    'rejects columns=%s with a RangeError naming columns',
+    (columns) => {
+      expect(() => validateChartShapeConfig({ shape: 'rectangular', columns })).toThrow(RangeError);
+      expect(() => validateChartShapeConfig({ shape: 'rectangular', columns })).toThrow(/columns/);
+      expect(() => resolveShapeConfig({ shape: 'rectangular', columns })).toThrow(RangeError);
+    },
+  );
+
+  it('rejects a product exceeding the 366-day window', () => {
+    const config = { shape: 'rectangular' as const, rows: 20, columns: 20 };
+    expect(() => validateChartShapeConfig(config)).toThrow(RangeError);
+    expect(() => validateChartShapeConfig(config)).toThrow(/rows \* columns must not exceed 366 days/);
+  });
+
+  it("rejects combining 'days' with 'rows'", () => {
+    const config = { shape: 'rectangular' as const, days: 90, rows: 4 };
+    expect(() => validateChartShapeConfig(config)).toThrow(RangeError);
+    expect(() => validateChartShapeConfig(config)).toThrow(/'days' cannot be combined with 'rows'\/'columns'/);
+    expect(() => resolveShapeConfig(config)).toThrow(RangeError);
+  });
+
+  it("rejects combining 'days' with 'columns'", () => {
+    const config = { shape: 'rectangular' as const, days: 90, columns: 30 };
+    expect(() => validateChartShapeConfig(config)).toThrow(RangeError);
+    expect(() => resolveShapeConfig(config)).toThrow(/'days' cannot be combined/);
+  });
+
+  it('accepts a valid 4x30 configuration', () => {
+    expect(() => validateChartShapeConfig({ shape: 'rectangular', rows: 4, columns: 30 })).not.toThrow();
+    expect(() => resolveShapeConfig({ shape: 'rectangular', rows: 4, columns: 30 })).not.toThrow();
+  });
+
+  it('accepts single-dimension configurations within bounds', () => {
+    expect(() => validateChartShapeConfig({ shape: 'rectangular', columns: 52 })).not.toThrow();
+    expect(() => validateChartShapeConfig({ shape: 'rectangular', rows: 1 })).not.toThrow();
+  });
+});
+
+describe('square mode removal (FR-017 breaking)', () => {
+  it("rejects shape:'square' with size", () => {
+    expect(() => validateChartShapeConfig({ shape: 'square', size: 7 } as any)).toThrow(RangeError);
+    expect(() => validateChartShapeConfig({ shape: 'square', size: 7 } as any)).toThrow(/square mode removed/i);
+    expect(() => resolveShapeConfig({ shape: 'square', size: 7 } as any)).toThrow(RangeError);
+  });
+  it('rejects any square config via validateChartShapeConfig', () => {
+    expect(() => validateChartShapeConfig({ shape: 'square' } as any)).toThrow(RangeError);
   });
 });

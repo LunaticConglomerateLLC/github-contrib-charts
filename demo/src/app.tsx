@@ -7,14 +7,13 @@ import type { CellShape } from '@wearelunatic/github-contrib-charts';
 export function App(): JSX.Element {
   const [token, setToken] = useState('');
   const [username, setUsername] = useState('');
-  const [geometry, setGeometry] = useState<'rectangular' | 'square'>('rectangular');
-  const [days, setDays] = useState(365);
-  const [size, setSize] = useState(10);
+  const [rows, setRows] = useState(7);
+  const [columns, setColumns] = useState(52);
   const [theme, setTheme] = useState('github-light');
   const [shape, setShape] = useState<CellShape>('square');
   const [copied, setCopied] = useState(false);
 
-  const snippet = buildSnippet({ username: username || 'octocat', geometry, days, size, theme, shape });
+  const snippet = buildSnippet({ username: username || 'octocat', rows, columns, theme, shape });
 
   async function copySnippet(): Promise<void> {
     try {
@@ -38,12 +37,10 @@ export function App(): JSX.Element {
           onTokenChange={setToken}
           username={username}
           onUsernameChange={setUsername}
-          geometry={geometry}
-          onGeometryChange={setGeometry}
-          days={days}
-          onDaysChange={setDays}
-          size={size}
-          onSizeChange={setSize}
+          rows={rows}
+          onRowsChange={setRows}
+          columns={columns}
+          onColumnsChange={setColumns}
           theme={theme}
           onThemeChange={setTheme}
           shape={shape}
@@ -52,9 +49,8 @@ export function App(): JSX.Element {
         <Preview
           token={token}
           username={username}
-          geometry={geometry}
-          days={days}
-          size={size}
+          rows={rows}
+          columns={columns}
           theme={theme}
           shape={shape}
         />
