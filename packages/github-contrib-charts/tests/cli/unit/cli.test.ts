@@ -164,12 +164,12 @@ describe('CLI shape options (US3)', () => {
     return writes;
   }
 
-  it('parses --geometry square --size 8', async () => {
-    const code = await run('octocat', { format: 'text', geometry: 'square', size: '8' });
+  it('parses --geometry rectangular --rows 7 --columns 7 (square replacement)', async () => {
+    const code = await run('octocat', { format: 'text', geometry: 'rectangular', rows: '7', columns: '7' });
     expect(code).toBe(0);
     expect(renderMock.renderText).toHaveBeenCalledWith(
       'octocat',
-      expect.objectContaining({ geometry: 'square', size: 8 }),
+      expect.objectContaining({ geometry: 'rectangular', rows: 7, columns: 7 }),
     );
   });
 
@@ -181,11 +181,11 @@ describe('CLI shape options (US3)', () => {
     );
   });
 
-  it('treats --shape rectangular/square as a geometry alias', async () => {
-    await run('octocat', { format: 'text', shape: 'square' });
+  it('treats --shape rectangular as a geometry alias', async () => {
+    await run('octocat', { format: 'text', shape: 'rectangular' });
     expect(renderMock.renderText).toHaveBeenCalledWith(
       'octocat',
-      expect.objectContaining({ geometry: 'square' }),
+      expect.objectContaining({ geometry: 'rectangular' }),
     );
   });
 
@@ -204,18 +204,18 @@ describe('CLI shape options (US3)', () => {
     expect(writes.join('')).toContain('days must be an integer between 1 and 366');
   });
 
-  it('exits 1 for non-integer --size', async () => {
+  it('exits 1 for --size (square removed, FR-017)', async () => {
     const writes = captureStderr();
-    const code = await run('octocat', { format: 'text', geometry: 'square', size: '2.5' });
+    const code = await run('octocat', { format: 'text', size: '8' } as unknown as never);
     expect(code).toBe(1);
-    expect(writes.join('')).toContain('size must be an integer between 1 and 19');
+    expect(writes.join('')).toMatch(/square mode removed/i);
   });
 
   it('exits 1 for an unknown geometry value', async () => {
     const writes = captureStderr();
     const code = await run('octocat', { format: 'text', geometry: 'triangle' });
     expect(code).toBe(1);
-    expect(writes.join('')).toContain("geometry must be 'rectangular' or 'square'");
+    expect(writes.join('')).toContain("geometry must be 'rectangular' (square removed");
   });
 
   it('exits 1 when a RangeError escapes the renderers', async () => {
@@ -240,10 +240,17 @@ describe('CLI shape options (US3)', () => {
   });
 
   it('prefers explicit --geometry over legacy --weeks/--layout', async () => {
-    await run('octocat', { format: 'text', geometry: 'square', size: '5', weeks: '7', layout: '13-by-4' });
+    await run('octocat', {
+      format: 'text',
+      geometry: 'rectangular',
+      rows: '4',
+      columns: '30',
+      weeks: '7',
+      layout: '13-by-4',
+    });
     expect(renderMock.renderText).toHaveBeenLastCalledWith(
       'octocat',
-      expect.objectContaining({ geometry: 'square', size: 5, layout: '13-by-4', weeks: 7 }),
+      expect.objectContaining({ geometry: 'rectangular', rows: 4, columns: 30, layout: '13-by-4', weeks: 7 }),
     );
   });
 });

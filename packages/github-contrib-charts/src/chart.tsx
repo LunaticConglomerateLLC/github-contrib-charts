@@ -13,16 +13,18 @@ const GAP = 3;
 export interface ContributionChartProps {
   data?: ContributionDay[];
   autoFetch?: boolean;
-  /** Chart shape. Defaults to 'rectangular'. Takes precedence over gridLayout. */
-  shape?: 'rectangular' | 'square';
-  /** Day count for the rectangular shape (1–366). Defaults to 365. */
+  /** Chart shape — rectangular only (square removed per FR-017; use rows==columns for 7×7). Defaults to 'rectangular'. */
+  shape?: 'rectangular';
+  /** Week-aligned day count for the rectangular shape (1–366). Defaults to 364 (7×52). Mutually exclusive with rows/columns. */
   days?: number;
-  /** Edge size for the square shape (1–19). Defaults to 10. */
-  size?: number;
+  /** Custom rectangular grid height (integer ≥ 1). Defaults to 7 when only `columns` is given. */
+  rows?: number;
+  /** Custom rectangular grid width (integer ≥ 1). Defaults to 52 when only `rows` is given; `rows × columns` must not exceed 366. */
+  columns?: number;
   /**
    * Legacy layout config.
    *
-   * @deprecated Use `shape`/`days`/`size` instead.
+   * @deprecated Use `shape`/`days`/rows/columns instead.
    */
   gridLayout?: GridLayoutConfig;
   cellShape: CellShape;
@@ -41,7 +43,8 @@ export function ContributionChart({
   autoFetch = true,
   shape,
   days,
-  size,
+  rows,
+  columns,
   gridLayout,
   cellShape,
   colorTheme,
@@ -61,13 +64,17 @@ export function ContributionChart({
   const shapeConfig: ChartShapeConfig = useMemo(() => {
     if (gridLayout && !shape) {
       console.warn(
-        '[github-contrib-charts] gridLayout is deprecated; use the shape/days/size props instead.',
+        '[github-contrib-charts] gridLayout is deprecated; use the shape/days/rows/columns props instead.',
       );
       return gridLayout;
     }
-    if (shape === 'square') return { shape: 'square', size };
-    return { shape: shape ?? 'rectangular', days };
-  }, [shape, days, size, gridLayout]);
+    if ((shape as string) === 'square') {
+      throw new RangeError(
+        "square mode removed: use { shape: 'rectangular', rows: N, columns: N } (e.g. rows: 7, columns: 7 for 7×7)",
+      );
+    }
+    return { shape: shape ?? 'rectangular', days, rows, columns };
+  }, [shape, days, rows, columns, gridLayout]);
 
   const grid: ContributionGrid = useMemo(() => computeGrid(daysList, shapeConfig), [daysList, shapeConfig]);
   const stats = useMemo(() => computeStats(daysList), [daysList]);
@@ -75,40 +82,81 @@ export function ContributionChart({
   const width = grid.columns * (CELL_SIZE + GAP) + GAP;
   const height = grid.rows * (CELL_SIZE + GAP) + GAP;
 
-  const [tooltip, setTooltip] = useState<{ cell: GridCell; x: number; y: number } | null>(null);
+  const [tooltip, setTooltip] = useState<{ cell: GridCell; row: number; col: number; x: number; y: number } | null>(null);
 
   const legend = [0, 1, 2, 3, 4] as const;
 
+  // Clamp tooltip so it never leaves the SVG bounds (≈110×24). Keep 4px inset.
+  const tooltipPos = tooltip
+    ? {
+        left: Math.min(Math.max(4, tooltip.x + CELL_SIZE / 2 - 55), width - 110 - 4),
+        top: Math.min(Math.max(4, tooltip.y - 28), height - 24 - 4),
+      }
+    : null;
+
   return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
+    <div style={{ display: 'inline-block', overflow: 'visible' }}>
       {title ? <div style={{ textAlign: 'center', fontWeight: 600, marginBottom: 4 }}>{title}</div> : null}
-      <svg
-        className={className}
-        style={style}
-        width={width}
-        height={height + (showLegend ? 24 : 0)}
-        role="img"
-        aria-label="GitHub contribution chart"
-        data-testid="chart-svg"
-      >
+      <div style={{ position: 'relative', display: 'inline-block', overflow: 'visible' }}>
+        <svg
+          className={className}
+          style={{ ...style, overflow: 'visible', display: 'block' }}
+          width={width}
+          height={height + (showLegend ? 24 : 0)}
+          role="img"
+          aria-label="GitHub contribution chart"
+          data-testid="chart-svg"
+        >
         {grid.cells.map((row, r) =>
-          row.map((cell, c) => (
-            <g
-              key={`${r}-${c}`}
-              data-cell
-              onClick={() => onCellClick?.(cell)}
-              onMouseEnter={() => setTooltip({ cell, x: c * (CELL_SIZE + GAP), y: r * (CELL_SIZE + GAP) })}
-              onMouseLeave={() => setTooltip(null)}
-            >
-              <CellShapeRenderer
-                shape={cellShape}
-                x={c * (CELL_SIZE + GAP)}
-                y={r * (CELL_SIZE + GAP)}
-                size={CELL_SIZE}
-                fill={colorFor(stops, cell.contributionLevel)}
-              />
-            </g>
-          )),
+          row.map((cell, c) => {
+            const isHovered = tooltip?.row === r && tooltip?.col === c;
+            const cx = c * (CELL_SIZE + GAP);
+            const cy = r * (CELL_SIZE + GAP);
+            return (
+              <g
+                key={`${r}-${c}`}
+                data-cell
+                data-hovered={isHovered ? 'true' : undefined}
+                onClick={() => onCellClick?.(cell)}
+                onMouseEnter={() => setTooltip({ cell, row: r, col: c, x: cx, y: cy })}
+                onMouseLeave={() => setTooltip(null)}
+                style={{ cursor: 'pointer' }}
+              >
+                <CellShapeRenderer
+                  shape={cellShape}
+                  x={cx}
+                  y={cy}
+                  size={CELL_SIZE}
+                  fill={colorFor(stops, cell.contributionLevel)}
+                />
+                {isHovered ? (
+                  cellShape === 'circle' ? (
+                    <circle
+                      cx={cx + CELL_SIZE / 2}
+                      cy={cy + CELL_SIZE / 2}
+                      r={CELL_SIZE / 2 + 1.5}
+                      fill="none"
+                      stroke="#1f2328"
+                      strokeWidth={1.5}
+                      pointerEvents="none"
+                    />
+                  ) : (
+                    <rect
+                      x={cx - 1}
+                      y={cy - 1}
+                      width={CELL_SIZE + 2}
+                      height={CELL_SIZE + 2}
+                      rx={cellShape === 'rounded-rect' ? CELL_SIZE / 3 : 2}
+                      fill="none"
+                      stroke="#1f2328"
+                      strokeWidth={1.5}
+                      pointerEvents="none"
+                    />
+                  )
+                ) : null}
+              </g>
+            );
+          }),
         )}
         {showLegend ? (
           <g transform={`translate(${GAP}, ${height + 4})`}>
@@ -130,16 +178,33 @@ export function ContributionChart({
             </text>
           </g>
         ) : null}
-        {tooltip ? (
-          <g data-tooltip transform={`translate(${tooltip.x + 2}, ${tooltip.y + 2})`}>
-            <rect x={-2} y={-2} width={110} height={24} rx={4} fill="#24292e" opacity={0.9} />
-            <text x={0} y={14} fontSize={9} fill="#fff">
-              {tooltip.cell.date ? tooltip.cell.date.toISOString().slice(0, 10) : 'n/a'} ·{' '}
-              {tooltip.cell.contributionCount}
-            </text>
-          </g>
-        ) : null}
       </svg>
+      {tooltip && tooltipPos ? (
+        <div
+          data-tooltip
+          role="tooltip"
+          style={{
+            position: 'absolute',
+            left: tooltipPos.left,
+            top: tooltipPos.top,
+            minWidth: 110,
+            height: 24,
+            padding: '4px 6px',
+            borderRadius: 4,
+            background: '#24292e',
+            color: '#fff',
+            fontSize: 11,
+            lineHeight: '16px',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+            zIndex: 10,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+          }}
+        >
+          {tooltip.cell.date ? tooltip.cell.date.toISOString().slice(0, 10) : 'n/a'} · {tooltip.cell.contributionCount}
+        </div>
+      ) : null}
+      </div>
       {showStats ? <ContributionStats stats={stats} /> : null}
     </div>
   );

@@ -34,29 +34,25 @@ describe('App', () => {
     expect(screen.getByTestId('snippet')).toBeInTheDocument();
   });
 
-  it('updates snippet when username, geometry and theme change', () => {
+  it('updates snippet when username and theme change', () => {
     render(<App />);
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: 'stefano' } });
-    fireEvent.change(screen.getByTestId('geometry-toggle'), { target: { value: 'square' } });
     fireEvent.change(screen.getByLabelText(/theme/i), { target: { value: 'github-dark' } });
-    expect(screen.getByTestId('snippet')).toHaveTextContent('shape="square"');
-    expect(screen.getByTestId('snippet')).toHaveTextContent('size={10}');
+    expect(screen.getByTestId('snippet')).toHaveTextContent('shape="rectangular"');
+    expect(screen.getByTestId('snippet')).toHaveTextContent('rows={7}');
     expect(screen.getByTestId('snippet')).toHaveTextContent('github-dark');
   });
 
-  it('preserves values when toggling between geometries', () => {
+  it('updates snippet when rows/columns change', () => {
     render(<App />);
-    // Square mode: set size to 8
-    fireEvent.change(screen.getByTestId('geometry-toggle'), { target: { value: 'square' } });
-    fireEvent.change(screen.getByLabelText(/size/i), { target: { value: '8' } });
-    expect(screen.getByTestId('snippet')).toHaveTextContent('size={8}');
-    // Back to rectangular: history keeps its previous non-default value after edits
-    fireEvent.change(screen.getByTestId('geometry-toggle'), { target: { value: 'rectangular' } });
-    fireEvent.change(screen.getByLabelText(/history/i), { target: { value: '60' } });
-    expect(screen.getByTestId('snippet')).toHaveTextContent('days={60}');
-    // To square again: size is still 8 (inactive mode value preserved)
-    fireEvent.change(screen.getByTestId('geometry-toggle'), { target: { value: 'square' } });
-    expect((screen.getByLabelText(/size/i) as HTMLInputElement).value).toBe('8');
+    fireEvent.change(screen.getByLabelText(/^Rows/i), { target: { value: '4' } });
+    fireEvent.change(screen.getByLabelText(/^Columns/i), { target: { value: '30' } });
+    expect(screen.getByTestId('snippet')).toHaveTextContent('rows={4}');
+    expect(screen.getByTestId('snippet')).toHaveTextContent('columns={30}');
+    // preserved after change back
+    fireEvent.change(screen.getByLabelText(/^Rows/i), { target: { value: '7' } });
+    expect((screen.getByLabelText(/^Rows/i) as HTMLInputElement).value).toBe('7');
+    expect((screen.getByLabelText(/^Columns/i) as HTMLInputElement).value).toBe('30');
   });
 
   it('renders preview once token and username are provided', async () => {

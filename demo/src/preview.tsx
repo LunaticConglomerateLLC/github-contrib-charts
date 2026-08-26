@@ -11,19 +11,17 @@ import {
 export interface PreviewProps {
   token: string;
   username: string;
-  geometry: 'rectangular' | 'square';
-  days: number;
-  size: number;
+  rows: number;
+  columns: number;
   theme: string;
   shape: CellShape;
 }
 
-export function Preview({ token, username, geometry, days, size, theme, shape }: PreviewProps): JSX.Element {
+export function Preview({ token, username, rows, columns, theme, shape }: PreviewProps): JSX.Element {
   const [data, setData] = useState<ContributionDay[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const shapeConfig: ChartShapeConfig =
-    geometry === 'square' ? { shape: 'square', size } : { shape: 'rectangular', days };
+  const shapeConfig: ChartShapeConfig = { shape: 'rectangular', rows, columns };
 
   useEffect(() => {
     if (!token || !username) {
@@ -45,7 +43,7 @@ export function Preview({ token, username, geometry, days, size, theme, shape }:
     return () => {
       cancelled = true;
     };
-  }, [token, username, geometry, days, size]);
+  }, [token, username, rows, columns]);
 
   if (!token || !username) {
     return <p style={{ color: '#777' }}>Enter a token and username to preview the chart.</p>;
@@ -60,7 +58,7 @@ export function Preview({ token, username, geometry, days, size, theme, shape }:
   }
 
   return (
-    <div data-testid="preview">
+    <div data-testid="preview" style={{ overflow: 'visible', flex: '1 1 520px', minWidth: 0 }}>
       <ContributionChart
         data={data}
         autoFetch={false}

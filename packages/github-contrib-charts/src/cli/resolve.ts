@@ -1,64 +1,96 @@
 import type { ChartShapeConfig, DateRange } from '../types.js';
-import { DEFAULT_DAYS, DEFAULT_SIZE, MAX_DAYS } from '../types.js';
-import { validateDays, validateSize } from '../errors.js';
+import {
+  DEFAULT_COLUMNS,
+  DEFAULT_DAYS,
+  DEFAULT_ROWS,
+  MAX_DAYS,
+} from '../types.js';
+import {
+  validateColumns,
+  validateDays,
+  validateRectangularDimensions,
+  validateRows,
+} from '../errors.js';
 import type { CliOptions } from './types.js';
+
+const SQUARE_REMOVED_MESSAGE =
+  "square mode removed: use { shape: 'rectangular', rows: N, columns: N } (e.g. rows: 7, columns: 7 for 7×7)";
 
 /** Resolves the GitHub token from options or the GITHUB_TOKEN env var. */
 export function resolveToken(token?: string): string {
   return token ?? process.env.GITHUB_TOKEN ?? '';
 }
 
-function warnIgnoredFlag(otherKey: string, shapeName: string, usedKey: string): void {
-  console.warn(
-    `[github-contrib-charts] '${otherKey}' is ignored for ${shapeName} shapes; use '${usedKey}'.`,
-  );
-}
-
 /**
- * Resolves CLI options into a ChartShapeConfig.
+ * Resolves CLI options into a ChartShapeConfig (rectangular-only after FR-017 square removal).
  *
- * Explicit --geometry wins over deprecated --weeks/--layout. Without any shape
- * flags this falls back to the default rectangular 365-day window.
+ * Explicit --geometry rectangular wins over deprecated --weeks/--layout. Without
+ * any shape flags this falls back to the default rectangular 364-day (7×52)
+ * window. Presence of --rows/--columns implies rectangular custom geometry;
+ * combining them with --days is a hard RangeError (FR-006). --size and
+ * --geometry square are rejected per FR-017 (breaking).
  */
 export function gridShapeConfig(options: CliOptions = {}): ChartShapeConfig {
+  const raw = options as CliOptions & Record<string, unknown>;
+  const hasRowsCols = options.rows !== undefined || options.columns !== undefined;
   const geometry = options.geometry;
+  // FR-017 breaking: square removed (runtime check: raw may carry 'square' despite CliOptions type)
+  if ((geometry as unknown) === 'square' || (raw as Record<string, unknown>).geometry === 'square') {
+    throw new RangeError(SQUARE_REMOVED_MESSAGE);
+  }
+  if (raw.size !== undefined) {
+    throw new RangeError(SQUARE_REMOVED_MESSAGE);
+  }
   if (geometry !== undefined) {
-    if (geometry !== 'rectangular' && geometry !== 'square') {
-      throw new RangeError("geometry must be 'rectangular' or 'square'");
+    if (geometry !== 'rectangular') {
+      throw new RangeError("geometry must be 'rectangular' (square removed: use --rows/--columns for 7×7)");
     }
-    if (geometry === 'square') {
-      if (options.days !== undefined) warnIgnoredFlag('days', 'square', 'size');
-      if (options.size !== undefined) validateSize(options.size);
-      return { shape: 'square', size: options.size ?? DEFAULT_SIZE };
+    // geometry rectangular
+    if (hasRowsCols) {
+      if (options.days !== undefined) {
+        throw new RangeError("'days' cannot be combined with 'rows'/'columns'; use one or the other");
+      }
+      const rows = options.rows ?? DEFAULT_ROWS;
+      const columns = options.columns ?? DEFAULT_COLUMNS;
+      validateRows(rows);
+      validateColumns(columns);
+      validateRectangularDimensions(rows, columns);
+      return { shape: 'rectangular', rows, columns };
     }
-    if (options.size !== undefined) warnIgnoredFlag('size', 'rectangular', 'days');
     if (options.days !== undefined) validateDays(options.days);
     return { shape: 'rectangular', days: options.days ?? DEFAULT_DAYS };
   }
 
   // Deprecated layout flags keep working when no explicit geometry is given.
   if (options.layout === '13-by-4') return { type: '13-by-4', weeks: options.weeks };
-  if (options.weeks !== undefined && options.days === undefined && options.size === undefined) {
+  if (options.weeks !== undefined && options.days === undefined && !hasRowsCols) {
     return { type: 'n-by-7', weeks: options.weeks };
   }
+  if (hasRowsCols) {
+    if (options.days !== undefined) {
+      throw new RangeError("'days' cannot be combined with 'rows'/'columns'; use one or the other");
+    }
+    const rows = options.rows ?? DEFAULT_ROWS;
+    const columns = options.columns ?? DEFAULT_COLUMNS;
+    validateRows(rows);
+    validateColumns(columns);
+    validateRectangularDimensions(rows, columns);
+    return { shape: 'rectangular', rows, columns };
+  }
   if (options.days !== undefined) {
-    if (options.size !== undefined) warnIgnoredFlag('size', 'rectangular', 'days');
     validateDays(options.days);
     return { shape: 'rectangular', days: options.days };
-  }
-  if (options.size !== undefined) {
-    validateSize(options.size);
-    return { shape: 'square', size: options.size };
   }
   return { shape: 'rectangular', days: DEFAULT_DAYS };
 }
 
-/** Number of days a resolved config's window covers. */
+/** Number of days a resolved config's window covers (rectangular-only). */
 function spanOf(config: ChartShapeConfig): number {
   if ('shape' in config) {
-    return config.shape === 'square'
-      ? (config.size ?? DEFAULT_SIZE) ** 2
-      : (config.days ?? DEFAULT_DAYS);
+    if (config.rows !== undefined || config.columns !== undefined) {
+      return (config.rows ?? DEFAULT_ROWS) * (config.columns ?? DEFAULT_COLUMNS);
+    }
+    return config.days ?? DEFAULT_DAYS;
   }
   return config.type === 'n-by-7' ? config.weeks * 7 : (config.weeks ?? 52) * 7;
 }

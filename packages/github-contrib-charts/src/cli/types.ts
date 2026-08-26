@@ -4,7 +4,7 @@ import type { ThemeOption } from '../theme.js';
 export type OutputFormat = 'text' | 'png';
 
 /** Grid geometry for the chart. */
-export type ChartGeometry = 'rectangular' | 'square';
+export type ChartGeometry = 'rectangular';
 
 /** Options accepted by renderText, renderPng and the CLI. */
 export interface CliOptions {
@@ -14,10 +14,12 @@ export interface CliOptions {
   output?: string;
   /** Chart geometry. Default 'rectangular'. */
   geometry?: ChartGeometry;
-  /** Day count for the rectangular geometry (1–366). Default 365. */
+  /** Day count for the rectangular geometry (1–366). Default 364. */
   days?: number;
-  /** Edge size N for the square geometry (N×N days, 1–19). Default 10. */
-  size?: number;
+  /** Custom rectangular grid height (rows). Default 7 when only columns given. */
+  rows?: number;
+  /** Custom rectangular grid width (columns). Default 52 when only rows given. */
+  columns?: number;
   /**
    * Number of weeks for an n-by-7 layout.
    *

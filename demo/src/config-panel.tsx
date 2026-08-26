@@ -6,12 +6,10 @@ export interface ConfigPanelProps {
   onTokenChange: (v: string) => void;
   username: string;
   onUsernameChange: (v: string) => void;
-  geometry: 'rectangular' | 'square';
-  onGeometryChange: (v: 'rectangular' | 'square') => void;
-  days: number;
-  onDaysChange: (v: number) => void;
-  size: number;
-  onSizeChange: (v: number) => void;
+  rows: number;
+  onRowsChange: (v: number) => void;
+  columns: number;
+  onColumnsChange: (v: number) => void;
   theme: string;
   onThemeChange: (v: string) => void;
   shape: CellShape;
@@ -23,12 +21,10 @@ export function ConfigPanel({
   onTokenChange,
   username,
   onUsernameChange,
-  geometry,
-  onGeometryChange,
-  days,
-  onDaysChange,
-  size,
-  onSizeChange,
+  rows,
+  onRowsChange,
+  columns,
+  onColumnsChange,
   theme,
   onThemeChange,
   shape,
@@ -59,44 +55,29 @@ export function ConfigPanel({
         />
       </label>
       <label>
-        Geometry{' '}
-        <select
-          data-testid="geometry-toggle"
-          value={geometry}
-          onChange={(e) => onGeometryChange(e.target.value as 'rectangular' | 'square')}
+        Rows{' '}
+        <span style={{ color: '#666', fontSize: 11 }}>(grid height, default 7)</span>
+        <input
+          type="number"
+          min={1}
+          max={366}
+          value={rows}
+          onChange={(e) => onRowsChange(Number(e.target.value))}
           style={{ width: '100%' }}
-        >
-          <option value="rectangular">Rectangular (7 rows)</option>
-          <option value="square">Square (N×N)</option>
-        </select>
+        />
       </label>
-      {geometry === 'rectangular' ? (
-        <label>
-          History (days){' '}
-          <span style={{ color: '#666', fontSize: 11 }}>(each dot = one day, 7 rows = days of week)</span>
-          <input
-            type="number"
-            min={1}
-            max={366}
-            value={days}
-            onChange={(e) => onDaysChange(Number(e.target.value))}
-            style={{ width: '100%' }}
-          />
-        </label>
-      ) : (
-        <label>
-          Size (N×N days){' '}
-          <span style={{ color: '#666', fontSize: 11 }}>(each dot = one day, N rows × N columns)</span>
-          <input
-            type="number"
-            min={1}
-            max={19}
-            value={size}
-            onChange={(e) => onSizeChange(Number(e.target.value))}
-            style={{ width: '100%' }}
-          />
-        </label>
-      )}
+      <label>
+        Columns{' '}
+        <span style={{ color: '#666', fontSize: 11 }}>(grid width, default 52)</span>
+        <input
+          type="number"
+          min={1}
+          max={366}
+          value={columns}
+          onChange={(e) => onColumnsChange(Number(e.target.value))}
+          style={{ width: '100%' }}
+        />
+      </label>
       <label>
         Theme{' '}
         <select value={theme} onChange={(e) => onThemeChange(e.target.value)} style={{ width: '100%' }}>

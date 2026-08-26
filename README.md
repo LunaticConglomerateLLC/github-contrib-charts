@@ -26,23 +26,26 @@ and npm releases work.
 
 | Shape | Config | Grid | Window |
 |-------|--------|------|--------|
-| `rectangular` (default) | `{ shape: 'rectangular', days }` | 7 rows × ceil(days/7) week-aligned columns, Sunday first row, most recent day bottom-right | `days` days (1–366, default 365) |
-| `square` | `{ shape: 'square', size }` | size × size row-major cells, oldest top-left → newest bottom-right | `size²` days (size 1–19, default 10) |
+| `rectangular` (default, week-aligned) | `{ shape: 'rectangular', days }` | 7 rows × ceil(days/7) week-aligned columns, Sunday first row, most recent day bottom-right | `days` days (1–366, default 364 = 52 full weeks) |
+| `rectangular` (custom) | `{ shape: 'rectangular', rows, columns }` | rows × columns column-major GitHub-week cells (`idx=col*rows+row`), bottom-right pinned (7×4 28 →6×4 24 transpose, 01 pinned), 1 day per cell | `rows × columns` days (each ≥1, product ≤366; defaults 7×52 when one dimension omitted) |
 
 ```jsx
 <ContributionChart data={days} shape="rectangular" days={30} />
-<ContributionChart data={days} shape="square" size={10} />
+<ContributionChart data={days} shape="rectangular" rows={4} columns={30} /> // 4×30 = 120 days, column-major bottom-right pinned
+<ContributionChart data={days} shape="rectangular" rows={7} columns={7} /> // 7×7 = 49 days replaces square
 ```
 
-CLI equivalents: `--geometry rectangular --days 30` / `--geometry square --size 10`.
+CLI equivalents: `--geometry rectangular --days 30` / `--rows 4 --columns 30` (custom, `--rows`/`--columns` imply rectangular, partial dimension defaults to 7×52). Mixing `--days` with `--rows`/`--columns` is rejected pre-fetch. `--size`/`--geometry square` were removed in v1.1 (FR-017): use `rows==columns` (e.g. `--rows 7 --columns 7`).
+
+> **Default change (v1.1)**: `rectangular` week-aligned default is now **364 days (7×52)** instead of 365, so the default renders a true year view without a 53rd padding column. See `specs/003-configurable-chart-shape`.
 
 **Custom fetch windows**: `deriveDateRange(config, anchor?, override?)` accepts an explicit
 `{ from, to }` range that is used as-is when its day-span matches the shape window
-(`days`, or `size²`) — a mismatching or invalid override throws a `RangeError`.
+(`days` or `rows×columns`) — a mismatching or invalid override throws a `RangeError`.
 
 **Migration**: the old `gridLayout={{ type: 'n-by-7' | '13-by-4' }}` props and CLI
 `--weeks`/`--layout` flags are deprecated but still work — `n-by-7` maps to an equivalent
-rectangular grid of `weeks * 7` days. Prefer `shape`/`days`/`size`.
+rectangular grid of `weeks * 7` days. Prefer `shape`/`days`/`rows`/`columns`. `square`/`size`/`--size` were removed — use `rows==columns`.
 
 ## Demo
 

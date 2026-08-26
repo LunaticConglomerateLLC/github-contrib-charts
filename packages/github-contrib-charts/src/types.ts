@@ -46,31 +46,56 @@ export type GridLayoutConfig =
 /** Bounds for the rectangular shape's day count. */
 export const MIN_DAYS = 1;
 export const MAX_DAYS = 366;
-/** Default day count for the rectangular shape. */
-export const DEFAULT_DAYS = 365;
+/**
+ * Default day count for the rectangular shape. 364 = 52 full weeks, so the
+ * default renders a true 7×52 GitHub-style year view. Changed from 365
+ * intentionally in v1.1 (see specs/003-configurable-chart-shape).
+ */
+export const DEFAULT_DAYS = 364;
 
-/** Bounds for the square shape's edge size. */
-export const MIN_SIZE = 1;
-export const MAX_SIZE = 19;
-/** Default edge size for the square shape (floor(sqrt(366))). */
-export const DEFAULT_SIZE = 10;
+/** Lower bound for custom rectangular grid dimensions. */
+export const MIN_ROWS = 1;
+export const MIN_COLUMNS = 1;
+/** Default row count when only `columns` is provided. */
+export const DEFAULT_ROWS = 7;
+/** Default column count when only `rows` is provided. */
+export const DEFAULT_COLUMNS = 52;
 
 /**
- * Shape-based grid configuration.
+ * Shape-based grid configuration (rectangular only — square mode removed per FR-017).
  *
- * - `rectangular`: 7 rows × ceil(days/7) week-aligned columns (GitHub-style).
- * - `square`: size×size row-major grid of size² days.
- * - Legacy {@link GridLayoutConfig} variants are accepted but deprecated.
+ * `rectangular`: either a week-aligned GitHub-style grid (`days`) or a custom
+ * `rows` × `columns` day-per-cell grid (column-major GH-week, `rows × columns`
+ * ≤ 366); `days` is mutually exclusive with `rows`/`columns`. Use `rows:7
+ * columns:7` for a 7×7 grid (replaces the removed square 7×7).
+ * Legacy {@link GridLayoutConfig} variants are accepted but deprecated.
  */
 export type ChartShapeConfig =
-  | { shape: 'rectangular'; days?: number }
-  | { shape: 'square'; size?: number }
+  | {
+      shape: 'rectangular';
+      /**
+       * Week-aligned window in days (1–366). Renders 7 rows × ceil(days/7)
+       * columns. Mutually exclusive with `rows`/`columns`.
+       */
+      days?: number;
+      /**
+       * Custom grid height (integer ≥ 1). Defaults to {@link DEFAULT_ROWS}
+       * when only `columns` is given. Mutually exclusive with `days`.
+       */
+      rows?: number;
+      /**
+       * Custom grid width (integer ≥ 1). Defaults to {@link DEFAULT_COLUMNS}
+       * when only `rows` is given. Mutually exclusive with `days`.
+       * `rows × columns` must not exceed 366.
+       */
+      columns?: number;
+     }
   | GridLayoutConfig;
 
-/** A chart shape config with defaults applied and legacy aliases resolved. */
+/** A chart shape config with defaults applied and legacy aliases resolved (rectangular only). */
 export type NormalizedShapeConfig =
-  | { shape: 'rectangular'; days: number }
-  | { shape: 'square'; size: number };
+  | { shape: 'rectangular'; geometry: 'weeks'; days: number }
+  | { shape: 'rectangular'; geometry: 'custom'; rows: number; columns: number };
 
 /** The inclusive/exclusive date window a chart shape covers. Alias of DateRange. */
 export type DisplayWindow = DateRange;
@@ -95,8 +120,8 @@ export interface ContributionGrid {
   rows: number;
   /** Number of columns. */
   columns: number;
-  /** Layout strategy used. */
-  layout: 'rectangular' | 'square' | 'n-by-7' | '13-by-4';
+  /** Layout strategy used (square removed — rectangular-only). */
+  layout: 'rectangular' | 'n-by-7' | '13-by-4';
   /** Sum of all cell contribution counts. */
   totalContributions: number;
 }

@@ -123,19 +123,19 @@ describe('deriveDateRange', () => {
     expect(iso(range.to)).toBe('2024-01-07');
   });
 
-  it('rectangular defaults to 365 days', () => {
+  it('rectangular defaults to 364 days (7×52 year view)', () => {
     const range = deriveDateRange({ shape: 'rectangular' }, anchor);
-    expect(Math.round((range.to.getTime() - range.from.getTime()) / 86_400_000)).toBe(365);
+    expect(Math.round((range.to.getTime() - range.from.getTime()) / 86_400_000)).toBe(364);
   });
 
-  it('square size=10 → 100-day window ending at anchor', () => {
-    const range = deriveDateRange({ shape: 'square', size: 10 }, anchor);
+  it('rectangular 10×10 → 100-day window ending at anchor (square replacement)', () => {
+    const range = deriveDateRange({ shape: 'rectangular', rows: 10, columns: 10 }, anchor);
     expect(iso(range.from)).toBe('2023-09-29');
     expect(iso(range.to)).toBe('2024-01-07');
   });
 
   it('defaults the anchor to today UTC midnight', () => {
-    const range = deriveDateRange({ shape: 'square', size: 1 });
+    const range = deriveDateRange({ shape: 'rectangular', rows: 1, columns: 1 });
     const today = new Date();
     const utcToday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
     expect(range.from.getTime()).toBe(utcToday.getTime());
@@ -147,9 +147,9 @@ describe('deriveDateRange', () => {
     expect(range).toBe(override);
   });
 
-  it('honors a matching override for square windows', () => {
+  it('honors a matching override for 2×2 rectangular windows (square replacement)', () => {
     const override = { from: new Date('2024-01-03T00:00:00Z'), to: new Date('2024-01-07T00:00:00Z') };
-    const range = deriveDateRange({ shape: 'square', size: 2 }, anchor, override);
+    const range = deriveDateRange({ shape: 'rectangular', rows: 2, columns: 2 }, anchor, override);
     expect(range).toBe(override);
   });
 
@@ -158,7 +158,7 @@ describe('deriveDateRange', () => {
     expect(() =>
       deriveDateRange({ shape: 'rectangular', days: 30 }, anchor, override),
     ).toThrow(/must cover 30 days/);
-    expect(() => deriveDateRange({ shape: 'square', size: 10 }, anchor, override)).toThrow(RangeError);
+    expect(() => deriveDateRange({ shape: 'rectangular', rows: 10, columns: 10 }, anchor, override)).toThrow(RangeError);
   });
 
   it('rejects an override with invalid dates', () => {
@@ -217,5 +217,49 @@ describe('fetchContributions aggregate mapping', () => {
     expect(active.issueCount).toBe(1);
     expect(active.reviewCount).toBe(4);
     expect(days[days.length - 1]!.commitCount).toBe(0);
+  });
+});
+
+describe('deriveDateRange custom rectangular geometry', () => {
+  const ANCHOR = new Date('2026-03-15T13:45:00Z');
+
+  it('derives an exact rows × columns day window ending at the anchor', () => {
+    const range = deriveDateRange({ shape: 'rectangular', rows: 4, columns: 30 }, ANCHOR);
+    expect(range.from.toISOString()).toBe('2025-11-16T00:00:00.000Z'); // anchor - 119d
+    expect(range.to.toISOString()).toBe('2026-03-16T00:00:00.000Z'); // anchor + 1d
+    expect(Math.round((range.to.getTime() - range.from.getTime()) / 86_400_000)).toBe(120);
+  });
+
+  it('accepts a dateRange override covering exactly rows × columns days', () => {
+    const override = {
+      from: new Date('2025-11-16T00:00:00Z'),
+      to: new Date('2026-03-16T00:00:00Z'),
+    };
+    expect(deriveDateRange({ shape: 'rectangular', rows: 4, columns: 30 }, ANCHOR, override)).toBe(override);
+  });
+
+  it('rejects an override whose span does not match the custom window', () => {
+    const override = {
+      from: new Date('2025-11-17T00:00:00Z'),
+      to: new Date('2026-03-16T00:00:00Z'),
+    };
+    expect(() =>
+      deriveDateRange({ shape: 'rectangular', rows: 4, columns: 30 }, ANCHOR, override),
+    ).toThrow(/must cover 120 days/);
+  });
+
+  it('fails fast on invalid dimensions without any network call', async () => {
+    expect(() =>
+      deriveDateRange({ shape: 'rectangular', rows: 0, columns: 30 }, ANCHOR),
+    ).toThrow(RangeError);
+
+    // Documented pipeline: deriveDateRange precedes fetchContributions, so an
+    // invalid config aborts before any network activity can start.
+    const attempt = async (): Promise<unknown> => {
+      const range = deriveDateRange({ shape: 'rectangular', rows: 0, columns: 30 }, ANCHOR);
+      return fetchContributions('tok', 'octocat', range);
+    };
+    await expect(attempt()).rejects.toThrow(RangeError);
+    expect(mockedGraphql).not.toHaveBeenCalled();
   });
 });

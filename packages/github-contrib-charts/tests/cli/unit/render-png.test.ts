@@ -136,3 +136,34 @@ describe('buildContributionSvg', () => {
     expect(svg).toContain('#000000');
   });
 });
+
+describe('buildContributionSvg custom rows×columns (T020)', () => {
+  it('scales native dimensions with rows/columns for 4×30', () => {
+    const grid4x30: ContributionGrid = {
+      cells: Array.from({ length: 4 }, () =>
+        Array.from({ length: 30 }, () => ({
+          date: new Date('2025-01-01T00:00:00Z'), dateRange: null, contributionCount: 1, contributionLevel: 'FIRST_QUARTILE' as const,
+        })),
+      ),
+      rows: 4, columns: 30, layout: 'rectangular', totalContributions: 120,
+    };
+    const svg = buildContributionSvg(grid4x30, stats, {});
+    // native = columns*15 × rows*15 = 450 × 60
+    expect(svg).toContain('viewBox="0 0 450 60"');
+    expect(svg.match(/<rect /g)).toHaveLength(120);
+  });
+
+  it('scales correctly for default 7×52', () => {
+    const grid7x52: ContributionGrid = {
+      cells: Array.from({ length: 7 }, () =>
+        Array.from({ length: 52 }, () => ({
+          date: new Date('2025-01-01T00:00:00Z'), dateRange: null, contributionCount: 0, contributionLevel: 'NONE' as const,
+        })),
+      ),
+      rows: 7, columns: 52, layout: 'rectangular', totalContributions: 0,
+    };
+    const svg = buildContributionSvg(grid7x52, stats, {});
+    expect(svg).toContain('viewBox="0 0 780 105"'); // 52*15=780, 7*15=105
+    expect(svg.match(/<rect /g)).toHaveLength(364);
+  });
+});
