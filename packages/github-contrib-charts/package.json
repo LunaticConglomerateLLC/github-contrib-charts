@@ -1,6 +1,6 @@
 {
   "name": "@wearelunatic/github-contrib-charts",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Fetch GitHub contribution data, compute grids and statistics, and render charts as React SVG components or via the CLI (text/PNG)",
   "type": "module",
   "main": "./dist/index.js",
