@@ -139,14 +139,111 @@ describe('main / toCliOptions', () => {
       resolution: '1200x800',
     });
     expect(code).toBe(0);
-    expect(renderMock.renderPng).toHaveBeenCalledWith('octocat', {
-      token: undefined,
-      output: './output',
-      weeks: 7,
-      layout: 'n-by-7',
-      shape: 'circle',
-      theme: 'github-dark',
-      resolution: '1200x800',
+    expect(renderMock.renderPng).toHaveBeenCalledWith(
+      'octocat',
+      expect.objectContaining({
+        token: undefined,
+        output: './output',
+        weeks: 7,
+        layout: 'n-by-7',
+        cellShape: 'circle',
+        theme: 'github-dark',
+        resolution: '1200x800',
+      }),
+    );
+  });
+});
+
+describe('CLI shape options (US3)', () => {
+  function captureStderr(): string[] {
+    const writes: string[] = [];
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      writes.push(String(chunk));
+      return true;
     });
+    return writes;
+  }
+
+  it('parses --geometry square --size 8', async () => {
+    const code = await run('octocat', { format: 'text', geometry: 'square', size: '8' });
+    expect(code).toBe(0);
+    expect(renderMock.renderText).toHaveBeenCalledWith(
+      'octocat',
+      expect.objectContaining({ geometry: 'square', size: 8 }),
+    );
+  });
+
+  it('parses --days 30 with default rectangular geometry', async () => {
+    await run('octocat', { format: 'text', days: '30' });
+    expect(renderMock.renderText).toHaveBeenCalledWith(
+      'octocat',
+      expect.objectContaining({ days: 30 }),
+    );
+  });
+
+  it('treats --shape rectangular/square as a geometry alias', async () => {
+    await run('octocat', { format: 'text', shape: 'square' });
+    expect(renderMock.renderText).toHaveBeenCalledWith(
+      'octocat',
+      expect.objectContaining({ geometry: 'square' }),
+    );
+  });
+
+  it('parses --cell-shape circle into cellShape', async () => {
+    await run('octocat', { format: 'text', 'cell-shape': 'circle' });
+    expect(renderMock.renderText).toHaveBeenCalledWith(
+      'octocat',
+      expect.objectContaining({ cellShape: 'circle' }),
+    );
+  });
+
+  it('exits 1 for out-of-bounds --days', async () => {
+    const writes = captureStderr();
+    const code = await run('octocat', { format: 'text', days: '400' });
+    expect(code).toBe(1);
+    expect(writes.join('')).toContain('days must be an integer between 1 and 366');
+  });
+
+  it('exits 1 for non-integer --size', async () => {
+    const writes = captureStderr();
+    const code = await run('octocat', { format: 'text', geometry: 'square', size: '2.5' });
+    expect(code).toBe(1);
+    expect(writes.join('')).toContain('size must be an integer between 1 and 19');
+  });
+
+  it('exits 1 for an unknown geometry value', async () => {
+    const writes = captureStderr();
+    const code = await run('octocat', { format: 'text', geometry: 'triangle' });
+    expect(code).toBe(1);
+    expect(writes.join('')).toContain("geometry must be 'rectangular' or 'square'");
+  });
+
+  it('exits 1 when a RangeError escapes the renderers', async () => {
+    renderMock.renderText.mockRejectedValue(new RangeError('days array must not be empty'));
+    const writes = captureStderr();
+    const code = await run('octocat', { format: 'text' });
+    expect(code).toBe(1);
+    expect(writes.join('')).toContain('days array must not be empty');
+  });
+
+  it('keeps hidden deprecated --weeks/--layout flags working', async () => {
+    await run('octocat', { format: 'text', weeks: '7' });
+    expect(renderMock.renderText).toHaveBeenCalledWith(
+      'octocat',
+      expect.objectContaining({ weeks: 7 }),
+    );
+    await run('octocat', { format: 'text', layout: '13-by-4' });
+    expect(renderMock.renderText).toHaveBeenLastCalledWith(
+      'octocat',
+      expect.objectContaining({ layout: '13-by-4' }),
+    );
+  });
+
+  it('prefers explicit --geometry over legacy --weeks/--layout', async () => {
+    await run('octocat', { format: 'text', geometry: 'square', size: '5', weeks: '7', layout: '13-by-4' });
+    expect(renderMock.renderText).toHaveBeenLastCalledWith(
+      'octocat',
+      expect.objectContaining({ geometry: 'square', size: 5, layout: '13-by-4', weeks: 7 }),
+    );
   });
 });

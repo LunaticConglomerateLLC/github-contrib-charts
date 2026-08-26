@@ -32,10 +32,48 @@ export interface DateRange {
   to: Date;
 }
 
-/** Grid layout configuration. */
+/**
+ * Grid layout configuration.
+ *
+ * @deprecated Use {@link ChartShapeConfig} (`shape: 'rectangular' | 'square'`) instead.
+ * Legacy layouts are adapted internally: `n-by-7` maps to a rectangular grid of
+ * `weeks * 7` days; `13-by-4` is kept for backwards compatibility.
+ */
 export type GridLayoutConfig =
   | { type: 'n-by-7'; weeks: number }
   | { type: '13-by-4'; weeks?: number };
+
+/** Bounds for the rectangular shape's day count. */
+export const MIN_DAYS = 1;
+export const MAX_DAYS = 366;
+/** Default day count for the rectangular shape. */
+export const DEFAULT_DAYS = 365;
+
+/** Bounds for the square shape's edge size. */
+export const MIN_SIZE = 1;
+export const MAX_SIZE = 19;
+/** Default edge size for the square shape (floor(sqrt(366))). */
+export const DEFAULT_SIZE = 10;
+
+/**
+ * Shape-based grid configuration.
+ *
+ * - `rectangular`: 7 rows × ceil(days/7) week-aligned columns (GitHub-style).
+ * - `square`: size×size row-major grid of size² days.
+ * - Legacy {@link GridLayoutConfig} variants are accepted but deprecated.
+ */
+export type ChartShapeConfig =
+  | { shape: 'rectangular'; days?: number }
+  | { shape: 'square'; size?: number }
+  | GridLayoutConfig;
+
+/** A chart shape config with defaults applied and legacy aliases resolved. */
+export type NormalizedShapeConfig =
+  | { shape: 'rectangular'; days: number }
+  | { shape: 'square'; size: number };
+
+/** The inclusive/exclusive date window a chart shape covers. Alias of DateRange. */
+export type DisplayWindow = DateRange;
 
 /** A single cell in the computed contribution grid. */
 export interface GridCell {
@@ -58,7 +96,7 @@ export interface ContributionGrid {
   /** Number of columns. */
   columns: number;
   /** Layout strategy used. */
-  layout: 'n-by-7' | '13-by-4';
+  layout: 'rectangular' | 'square' | 'n-by-7' | '13-by-4';
   /** Sum of all cell contribution counts. */
   totalContributions: number;
 }

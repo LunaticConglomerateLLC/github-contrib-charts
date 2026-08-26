@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { graphql } from '@octokit/graphql';
-import { fetchContributions } from '../../src/fetch.js';
+import { fetchContributions, deriveDateRange } from '../../src/fetch.js';
 import { AuthenticationError, UserNotFoundError, RateLimitError, NetworkError, FetchError } from '../../src/errors.js';
 
 vi.mock('@octokit/graphql', () => ({
@@ -44,7 +44,7 @@ describe('fetchContributions', () => {
 
     const result = await fetchContributions('token', 'octocat', DATE_RANGE);
 
-    expect(result).toHaveLength(2);
+    expect(result).toHaveLength(7); // exact window: Jan1..Jan7
     expect(result[0]!.date.toISOString().slice(0, 10)).toBe('2026-01-01');
     expect(result[0]!.contributionCount).toBe(1);
     expect(result[0]!.contributionLevel).toBe('FIRST_QUARTILE');
@@ -110,5 +110,112 @@ describe('fetchContributions', () => {
   it('throws FetchError when the response shape is unexpected', async () => {
     mockedGraphql.mockResolvedValue({ user: null } as never);
     await expect(fetchContributions('t', 'octocat', DATE_RANGE)).rejects.toBeInstanceOf(FetchError);
+  });
+});
+
+describe('deriveDateRange', () => {
+  const anchor = new Date('2024-01-06T00:00:00Z'); // Saturday
+  const iso = (d: Date): string => d.toISOString().slice(0, 10);
+
+  it('rectangular days=30 → 30-day window ending at anchor', () => {
+    const range = deriveDateRange({ shape: 'rectangular', days: 30 }, anchor);
+    expect(iso(range.from)).toBe('2023-12-08');
+    expect(iso(range.to)).toBe('2024-01-07');
+  });
+
+  it('rectangular defaults to 365 days', () => {
+    const range = deriveDateRange({ shape: 'rectangular' }, anchor);
+    expect(Math.round((range.to.getTime() - range.from.getTime()) / 86_400_000)).toBe(365);
+  });
+
+  it('square size=10 → 100-day window ending at anchor', () => {
+    const range = deriveDateRange({ shape: 'square', size: 10 }, anchor);
+    expect(iso(range.from)).toBe('2023-09-29');
+    expect(iso(range.to)).toBe('2024-01-07');
+  });
+
+  it('defaults the anchor to today UTC midnight', () => {
+    const range = deriveDateRange({ shape: 'square', size: 1 });
+    const today = new Date();
+    const utcToday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    expect(range.from.getTime()).toBe(utcToday.getTime());
+  });
+
+  it('honors an explicit dateRange override with a matching day-span', () => {
+    const override = { from: new Date('2023-12-31T00:00:00Z'), to: new Date('2024-01-07T00:00:00Z') };
+    const range = deriveDateRange({ shape: 'rectangular', days: 7 }, anchor, override);
+    expect(range).toBe(override);
+  });
+
+  it('honors a matching override for square windows', () => {
+    const override = { from: new Date('2024-01-03T00:00:00Z'), to: new Date('2024-01-07T00:00:00Z') };
+    const range = deriveDateRange({ shape: 'square', size: 2 }, anchor, override);
+    expect(range).toBe(override);
+  });
+
+  it('rejects an override whose day-span mismatches the shape window', () => {
+    const override = { from: new Date('2023-12-15T00:00:00Z'), to: new Date('2024-01-07T00:00:00Z') };
+    expect(() =>
+      deriveDateRange({ shape: 'rectangular', days: 30 }, anchor, override),
+    ).toThrow(/must cover 30 days/);
+    expect(() => deriveDateRange({ shape: 'square', size: 10 }, anchor, override)).toThrow(RangeError);
+  });
+
+  it('rejects an override with invalid dates', () => {
+    const override = { from: new Date('not-a-date'), to: new Date('2024-01-07T00:00:00Z') };
+    expect(() =>
+      deriveDateRange({ shape: 'rectangular', days: 7 }, anchor, override),
+    ).toThrow(RangeError);
+  });
+});
+
+describe('fetchContributions window normalization', () => {
+  beforeEach(() => {
+    mockedGraphql.mockReset();
+  });
+
+  it('pads missing dates and filters days outside the exact window', async () => {
+    mockedGraphql.mockResolvedValue(validResponse() as never);
+    // Window Jan1..Jan8 exclusive → exactly 7 days; mock only returns 2.
+    const result = await fetchContributions('token', 'octocat', DATE_RANGE);
+
+    expect(result).toHaveLength(7);
+    expect(result[0]!.date.toISOString().slice(0, 10)).toBe('2026-01-01');
+    expect(result[0]!.contributionCount).toBe(1);
+    expect(result[6]!.date.toISOString().slice(0, 10)).toBe('2026-01-07');
+    expect(result[6]!.contributionCount).toBe(0);
+    expect(result[6]!.contributionLevel).toBe('NONE');
+  });
+});
+describe('fetchContributions aggregate mapping', () => {
+  it('maps aggregate totals to the most recent day with activity', async () => {
+    mockedGraphql.mockResolvedValueOnce({
+      user: {
+        contributionsCollection: {
+          contributionCalendar: {
+            weeks: [
+              {
+                contributionDays: [
+                  { date: '2026-01-01', contributionCount: 0, contributionLevel: 'NONE' },
+                  { date: '2026-01-02', contributionCount: 3, contributionLevel: 'FIRST_QUARTILE' },
+                  { date: '2026-01-03', contributionCount: 0, contributionLevel: 'NONE' },
+                ],
+              },
+            ],
+          },
+          totalCommitContributions: 7,
+          totalPullRequestContributions: 2,
+          totalIssueContributions: 1,
+          totalPullRequestReviewContributions: 4,
+        },
+      },
+    });
+    const days = await fetchContributions('tok', 'octocat', DATE_RANGE);
+    const active = days.find((d) => d.contributionCount > 0)!;
+    expect(active.commitCount).toBe(7);
+    expect(active.pullRequestCount).toBe(2);
+    expect(active.issueCount).toBe(1);
+    expect(active.reviewCount).toBe(4);
+    expect(days[days.length - 1]!.commitCount).toBe(0);
   });
 });

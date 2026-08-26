@@ -13,6 +13,12 @@
 export { renderText, formatText, gridConfig } from './render-text.js';
 
 /**
+ * Resolves CLI options into a chart shape config and derives fetch windows.
+ * @see {@link gridShapeConfig}, {@link resolveDateRange}, {@link parseResolution}
+ */
+export { gridShapeConfig, resolveDateRange, parseResolution, resolveToken } from './resolve.js';
+
+/**
  * Renders a chart as a PNG image buffer.
  * @see {@link renderPng}
  */

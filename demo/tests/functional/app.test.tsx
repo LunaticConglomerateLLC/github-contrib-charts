@@ -34,21 +34,37 @@ describe('App', () => {
     expect(screen.getByTestId('snippet')).toBeInTheDocument();
   });
 
-  it('updates snippet when username, layout and theme change', () => {
+  it('updates snippet when username, geometry and theme change', () => {
     render(<App />);
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: 'stefano' } });
-    fireEvent.change(screen.getByLabelText(/layout/i), { target: { value: '13-by-4' } });
+    fireEvent.change(screen.getByTestId('geometry-toggle'), { target: { value: 'square' } });
     fireEvent.change(screen.getByLabelText(/theme/i), { target: { value: 'github-dark' } });
-    expect(screen.getByTestId('snippet')).toHaveTextContent('13-by-4');
+    expect(screen.getByTestId('snippet')).toHaveTextContent('shape="square"');
+    expect(screen.getByTestId('snippet')).toHaveTextContent('size={10}');
     expect(screen.getByTestId('snippet')).toHaveTextContent('github-dark');
   });
 
+  it('preserves values when toggling between geometries', () => {
+    render(<App />);
+    // Square mode: set size to 8
+    fireEvent.change(screen.getByTestId('geometry-toggle'), { target: { value: 'square' } });
+    fireEvent.change(screen.getByLabelText(/size/i), { target: { value: '8' } });
+    expect(screen.getByTestId('snippet')).toHaveTextContent('size={8}');
+    // Back to rectangular: history keeps its previous non-default value after edits
+    fireEvent.change(screen.getByTestId('geometry-toggle'), { target: { value: 'rectangular' } });
+    fireEvent.change(screen.getByLabelText(/history/i), { target: { value: '60' } });
+    expect(screen.getByTestId('snippet')).toHaveTextContent('days={60}');
+    // To square again: size is still 8 (inactive mode value preserved)
+    fireEvent.change(screen.getByTestId('geometry-toggle'), { target: { value: 'square' } });
+    expect((screen.getByLabelText(/size/i) as HTMLInputElement).value).toBe('8');
+  });
+
   it('renders preview once token and username are provided', async () => {
-    const { container } = render(<App />);
+    render(<App />);
     fireEvent.change(screen.getByLabelText(/token/i), { target: { value: 'tok' } });
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: 'stefano' } });
     const svg = await screen.findByTestId('chart-svg');
-    expect(container).toContainElement(svg);
+    expect(svg).toBeInTheDocument();
   });
 
   it('copies install command and snippet to clipboard', async () => {

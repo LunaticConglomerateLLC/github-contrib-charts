@@ -6,16 +6,16 @@ export interface ConfigPanelProps {
   onTokenChange: (v: string) => void;
   username: string;
   onUsernameChange: (v: string) => void;
-  layout: string;
-  onLayoutChange: (v: string) => void;
-  weeks: number;
-  onWeeksChange: (v: number) => void;
+  geometry: 'rectangular' | 'square';
+  onGeometryChange: (v: 'rectangular' | 'square') => void;
+  days: number;
+  onDaysChange: (v: number) => void;
+  size: number;
+  onSizeChange: (v: number) => void;
   theme: string;
   onThemeChange: (v: string) => void;
   shape: CellShape;
   onShapeChange: (v: CellShape) => void;
-  days: number;
-  onDaysChange: (v: number) => void;
 }
 
 export function ConfigPanel({
@@ -23,16 +23,16 @@ export function ConfigPanel({
   onTokenChange,
   username,
   onUsernameChange,
-  layout,
-  onLayoutChange,
-  weeks,
-  onWeeksChange,
+  geometry,
+  onGeometryChange,
+  days,
+  onDaysChange,
+  size,
+  onSizeChange,
   theme,
   onThemeChange,
   shape,
   onShapeChange,
-  days,
-  onDaysChange,
 }: ConfigPanelProps): JSX.Element {
   return (
     <form
@@ -59,15 +59,20 @@ export function ConfigPanel({
         />
       </label>
       <label>
-        Layout{' '}
-        <select value={layout} onChange={(e) => onLayoutChange(e.target.value)} style={{ width: '100%' }}>
-          <option value="n-by-7">N×7 (weekly)</option>
-          <option value="13-by-4">13×4 (condensed)</option>
+        Geometry{' '}
+        <select
+          data-testid="geometry-toggle"
+          value={geometry}
+          onChange={(e) => onGeometryChange(e.target.value as 'rectangular' | 'square')}
+          style={{ width: '100%' }}
+        >
+          <option value="rectangular">Rectangular (7 rows)</option>
+          <option value="square">Square (N×N)</option>
         </select>
       </label>
-      {layout === 'n-by-7' ? (
+      {geometry === 'rectangular' ? (
         <label>
-          History (days back){' '}
+          History (days){' '}
           <span style={{ color: '#666', fontSize: 11 }}>(each dot = one day, 7 rows = days of week)</span>
           <input
             type="number"
@@ -80,14 +85,14 @@ export function ConfigPanel({
         </label>
       ) : (
         <label>
-          Weeks to display{' '}
-          <span style={{ color: '#666', fontSize: 11 }}>(each dot = one week, 4 rows = weeks vertically)</span>
+          Size (N×N days){' '}
+          <span style={{ color: '#666', fontSize: 11 }}>(each dot = one day, N rows × N columns)</span>
           <input
             type="number"
             min={1}
-            max={52}
-            value={weeks}
-            onChange={(e) => onWeeksChange(Number(e.target.value))}
+            max={19}
+            value={size}
+            onChange={(e) => onSizeChange(Number(e.target.value))}
             style={{ width: '100%' }}
           />
         </label>

@@ -177,3 +177,174 @@ describe('ContributionChart', () => {
     expect(tip).not.toBeNull();
   });
 });
+
+describe('ContributionChart rectangular shape (US1)', () => {
+  function days14(): ContributionDay[] {
+    const start = new Date('2023-12-24T00:00:00Z'); // Sunday
+    return Array.from({ length: 14 }, (_, i) => {
+      const dt = new Date(start);
+      dt.setUTCDate(start.getUTCDate() + i);
+      return {
+        date: dt,
+        contributionCount: i,
+        contributionLevel: 'FIRST_QUARTILE',
+        commitCount: 0,
+        pullRequestCount: 0,
+        issueCount: 0,
+        reviewCount: 0,
+      };
+    });
+  }
+
+  const baseProps = {
+    cellShape: 'square',
+    colorTheme: 'github-light',
+    showLegend: false,
+    showStats: false,
+  } as const;
+
+  it('renders exactly 14 cells in 7-row geometry for days=14', () => {
+    const { container } = render(
+      <ContributionChart {...baseProps} data={days14()} autoFetch={false} shape="rectangular" days={14} />,
+    );
+    expect(container.querySelectorAll('[data-cell]')).toHaveLength(14);
+    const svg = container.querySelector('[data-testid="chart-svg"]')!;
+    // height = rows*(CELL+GAP)+GAP = 7*15+3 = 108 (legend hidden)
+    expect(svg.getAttribute('height')).toBe('108');
+  });
+
+  it('shows a tooltip with ISO date and count on hover', () => {
+    const { container } = render(
+      <ContributionChart {...baseProps} data={days14()} autoFetch={false} shape="rectangular" days={14} />,
+    );
+    const cells = container.querySelectorAll('[data-cell]');
+    fireEvent.mouseEnter(cells[13]!);
+    const tip = document.querySelector('[data-tooltip]')!;
+    expect(tip.textContent).toContain('2024-01-06');
+    expect(tip.textContent).toContain('13');
+  });
+
+  it('renders the legend when showLegend is true', () => {
+    const { container } = render(
+      <ContributionChart
+        data={days14()}
+        autoFetch={false}
+        shape="rectangular"
+        days={14}
+        cellShape="square"
+        colorTheme="github-light"
+        showStats={false}
+      />,
+    );
+    expect(container.textContent).toContain('More');
+    expect(container.textContent).toContain('Less');
+  });
+
+  it('still renders legacy gridLayout props with a deprecation warning', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const start = new Date('2025-12-28T00:00:00Z');
+    const data28 = Array.from({ length: 28 }, (_, i) => {
+      const dt = new Date(start);
+      dt.setUTCDate(start.getUTCDate() + i);
+      return {
+        date: dt,
+        contributionCount: i,
+        contributionLevel: 'FIRST_QUARTILE' as const,
+        commitCount: 0,
+        pullRequestCount: 0,
+        issueCount: 0,
+        reviewCount: 0,
+      };
+    });
+    const { container } = render(
+      <ContributionChart
+        {...baseProps}
+        data={data28}
+        autoFetch={false}
+        gridLayout={{ type: 'n-by-7', weeks: 4 }}
+      />,
+    );
+    expect(container.querySelectorAll('[data-cell]')).toHaveLength(28);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('prefers shape over deprecated gridLayout when both are given', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { container } = render(
+      <ContributionChart
+        {...baseProps}
+        data={days14()}
+        autoFetch={false}
+        shape="rectangular"
+        days={14}
+        gridLayout={{ type: 'n-by-7', weeks: 1 }}
+      />,
+    );
+    expect(container.querySelectorAll('[data-cell]')).toHaveLength(14);
+    warn.mockRestore();
+  });
+
+  it('throws a RangeError for out-of-bounds days', () => {
+    expect(() =>
+      render(
+        <ContributionChart {...baseProps} data={days14()} autoFetch={false} shape="rectangular" days={400} />,
+      ),
+    ).toThrow(/days must be an integer between 1 and 366/);
+  });
+});
+
+describe('ContributionChart square shape (US2)', () => {
+  function days100(): ContributionDay[] {
+    const start = new Date('2023-09-29T00:00:00Z');
+    return Array.from({ length: 100 }, (_, i) => {
+      const dt = new Date(start);
+      dt.setUTCDate(start.getUTCDate() + i);
+      return {
+        date: dt,
+        contributionCount: i,
+        contributionLevel: 'FIRST_QUARTILE',
+        commitCount: 0,
+        pullRequestCount: 0,
+        issueCount: 0,
+        reviewCount: 0,
+      };
+    });
+  }
+
+  it('renders 100 cells with equal proportions for size=10', () => {
+    const { container } = render(
+      <ContributionChart
+        data={days100()}
+        autoFetch={false}
+        shape="square"
+        size={10}
+        cellShape="square"
+        colorTheme="github-light"
+        showLegend={false}
+        showStats={false}
+      />,
+    );
+    expect(container.querySelectorAll('[data-cell]')).toHaveLength(100);
+    const svg = container.querySelector('[data-testid="chart-svg"]')!;
+    expect(svg.getAttribute('width')).toBe(svg.getAttribute('height'));
+    expect(svg.getAttribute('width')).toBe('153'); // 10*(12+3)+3
+  });
+
+  it('throws a RangeError for out-of-bounds size', () => {
+    expect(() =>
+      render(
+        <ContributionChart
+          data={days100()}
+          autoFetch={false}
+          shape="square"
+          size={25}
+          cellShape="square"
+          colorTheme="github-light"
+          showLegend={false}
+          showStats={false}
+        />,
+      ),
+    ).toThrow(/size must be an integer between 1 and 19/);
+  });
+});

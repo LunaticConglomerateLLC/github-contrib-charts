@@ -1,15 +1,12 @@
 import { fetchContributions } from '../fetch.js';
 import { computeGrid } from '../grid.js';
 import { computeStats } from '../stats.js';
-import type { ContributionGrid, ContributionStats, GridLayoutConfig } from '../types.js';
+import type { ContributionGrid, ContributionStats } from '../types.js';
 import type { CliOptions } from './types.js';
-import { resolveDateRange, resolveToken } from './resolve.js';
+import { gridShapeConfig, resolveDateRange, resolveToken } from './resolve.js';
 
-/** Builds the grid layout config from options. */
-export function gridConfig(options: CliOptions): GridLayoutConfig {
-  if ((options.layout ?? 'n-by-7') === '13-by-4') return { type: '13-by-4' };
-  return { type: 'n-by-7', weeks: options.weeks ?? 52 };
-}
+/** Builds the grid shape config from options. Alias of {@link gridShapeConfig}. */
+export const gridConfig = gridShapeConfig;
 
 /** Renders the block-character grid representation (two characters per cell). */
 function gridGlyphs(grid: ContributionGrid): string {
@@ -64,8 +61,8 @@ export function formatText(username: string, stats: ContributionStats, grid: Con
  */
 export async function renderText(username: string, options: CliOptions = {}): Promise<string> {
   const token = resolveToken(options.token);
-  const days = await fetchContributions(token, username, resolveDateRange());
+  const days = await fetchContributions(token, username, resolveDateRange(options));
   const stats = computeStats(days);
-  const grid = computeGrid(days, gridConfig(options));
+  const grid = computeGrid(days, gridShapeConfig(options));
   return formatText(username, stats, grid);
 }

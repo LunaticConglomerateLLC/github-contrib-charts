@@ -1,4 +1,4 @@
-import type { ContributionLevel, DateRange, GridLayoutConfig } from './types.js';
+import type { ChartShapeConfig, ContributionLevel, DateRange, GridLayoutConfig } from './types.js';
 
 /** Built-in colour theme names. */
 export type ThemePreset = 'github-light' | 'github-dark';
@@ -18,16 +18,33 @@ export interface ChartConfig {
   username: string;
   /** GitHub personal access token. */
   token: string;
-  /** Grid layout strategy. */
-  gridLayout: GridLayoutConfig;
+  /** Chart shape. Defaults to 'rectangular'. Mutually exclusive with gridLayout. */
+  shape?: 'rectangular' | 'square';
+  /** Day count for the rectangular shape (1–366). Defaults to 365. Ignored for square. */
+  days?: number;
+  /** Edge size for the square shape (1–19). Defaults to 10. Ignored for rectangular. */
+  size?: number;
+  /**
+   * Grid layout strategy.
+   *
+   * @deprecated Use `shape`/`days`/`size` instead. If both are given, shape wins.
+   */
+  gridLayout?: GridLayoutConfig;
   /** Cell shape. */
   cellShape: CellShape;
   /** Built-in theme name or custom colour stops. */
   colorTheme: ThemePreset | ColorStop[];
-  /** Date range for fetching. */
-  dateRange: DateRange;
+  /** Date range for fetching. Overrides the shape-derived window when set. */
+  dateRange?: DateRange;
   /** Optional chart title. */
   title?: string;
   /** Whether to show the contribution-level legend. */
   showLegend: boolean;
+}
+
+/** Resolves a user-facing chart config into a normalized shape config. */
+export function toShapeConfig(config: Pick<ChartConfig, 'shape' | 'days' | 'size' | 'gridLayout'>): ChartShapeConfig {
+  if (config.gridLayout && !config.shape) return config.gridLayout;
+  if (config.shape === 'square') return { shape: 'square', size: config.size };
+  return { shape: 'rectangular', days: config.days };
 }

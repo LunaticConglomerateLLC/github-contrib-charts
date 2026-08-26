@@ -1,22 +1,17 @@
 import { fetchContributions } from '../fetch.js';
 import { computeGrid } from '../grid.js';
 import { computeStats } from '../stats.js';
-import type { ContributionGrid, ContributionStats, GridLayoutConfig } from '../types.js';
+import type { ContributionGrid, ContributionStats } from '../types.js';
 import sharp from 'sharp';
 import type { CliOptions } from './types.js';
-import { parseResolution, resolveDateRange, resolveToken } from './resolve.js';
+import { gridShapeConfig, parseResolution, resolveDateRange, resolveToken } from './resolve.js';
 import { resolveStops, colorFor } from '../theme.js';
 
 const CELL = 12;
 const GAP = 3;
 
-function gridConfig(options: CliOptions): GridLayoutConfig {
-  if ((options.layout ?? 'n-by-7') === '13-by-4') return { type: '13-by-4' };
-  return { type: 'n-by-7', weeks: options.weeks ?? 52 };
-}
-
 function cellMarkup(
-  shape: NonNullable<CliOptions['shape']>,
+  shape: NonNullable<CliOptions['cellShape']>,
   x: number,
   y: number,
   size: number,
@@ -35,7 +30,7 @@ export function buildContributionSvg(
   _stats: ContributionStats,
   options: CliOptions,
 ): string {
-  const shape = options.shape ?? 'square';
+  const shape = options.cellShape ?? options.shape ?? 'square';
   const stops = resolveStops(options.theme ?? 'github-light');
   const { width, height } = parseResolution(options.resolution);
   const nativeWidth = grid.columns * (CELL + GAP);
@@ -65,9 +60,9 @@ export function buildContributionSvg(
  */
 export async function renderPng(username: string, options: CliOptions = {}): Promise<Buffer> {
   const token = resolveToken(options.token);
-  const days = await fetchContributions(token, username, resolveDateRange());
+  const days = await fetchContributions(token, username, resolveDateRange(options));
   const stats = computeStats(days);
-  const grid = computeGrid(days, gridConfig(options));
+  const grid = computeGrid(days, gridShapeConfig(options));
   const svg = buildContributionSvg(grid, stats, options);
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
