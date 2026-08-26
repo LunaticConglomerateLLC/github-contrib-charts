@@ -7,14 +7,14 @@ import type { CellShape } from '@wearelunatic/github-contrib-charts';
 export function App(): JSX.Element {
   const [token, setToken] = useState('');
   const [username, setUsername] = useState('');
-  const [layout, setLayout] = useState('n-by-7');
-  const [weeks, setWeeks] = useState(52);
+  const [geometry, setGeometry] = useState<'rectangular' | 'square'>('rectangular');
+  const [days, setDays] = useState(365);
+  const [size, setSize] = useState(10);
   const [theme, setTheme] = useState('github-light');
   const [shape, setShape] = useState<CellShape>('square');
-  const [days, setDays] = useState(366);
   const [copied, setCopied] = useState(false);
 
-  const snippet = buildSnippet({ username: username || 'octocat', layout, weeks, theme, shape, days });
+  const snippet = buildSnippet({ username: username || 'octocat', geometry, days, size, theme, shape });
 
   async function copySnippet(): Promise<void> {
     try {
@@ -38,18 +38,26 @@ export function App(): JSX.Element {
           onTokenChange={setToken}
           username={username}
           onUsernameChange={setUsername}
-          layout={layout}
-          onLayoutChange={setLayout}
-          weeks={weeks}
-          onWeeksChange={setWeeks}
+          geometry={geometry}
+          onGeometryChange={setGeometry}
+          days={days}
+          onDaysChange={setDays}
+          size={size}
+          onSizeChange={setSize}
           theme={theme}
           onThemeChange={setTheme}
           shape={shape}
           onShapeChange={setShape}
-          days={days}
-          onDaysChange={setDays}
         />
-        <Preview token={token} username={username} layout={layout} weeks={weeks} theme={theme} shape={shape} days={days} />
+        <Preview
+          token={token}
+          username={username}
+          geometry={geometry}
+          days={days}
+          size={size}
+          theme={theme}
+          shape={shape}
+        />
       </div>
       <section style={{ marginTop: 24 }}>
         <h2>Copy this code</h2>

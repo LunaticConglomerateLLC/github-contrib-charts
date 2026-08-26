@@ -1,120 +1,91 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ConfigPanel } from '../../src/config-panel';
-import type { CellShape } from '@wearelunatic/github-contrib-charts';
+
+function renderPanel(overrides: Partial<Parameters<typeof ConfigPanel>[0]> = {}) {
+  const props: Parameters<typeof ConfigPanel>[0] = {
+    token: '',
+    onTokenChange: () => {},
+    username: '',
+    onUsernameChange: () => {},
+    geometry: 'rectangular',
+    onGeometryChange: () => {},
+    days: 365,
+    onDaysChange: () => {},
+    size: 10,
+    onSizeChange: () => {},
+    theme: 'github-light',
+    onThemeChange: () => {},
+    shape: 'square',
+    onShapeChange: () => {},
+    ...overrides,
+  };
+  return render(<ConfigPanel {...props} />);
+}
 
 describe('ConfigPanel', () => {
-  it('renders controls for grid, theme, shape and date range', () => {
-    render(
-      <ConfigPanel
-        token=""
-        onTokenChange={() => {}}
-        username=""
-        onUsernameChange={() => {}}
-        layout="n-by-7"
-        onLayoutChange={() => {}}
-        weeks={52}
-        onWeeksChange={() => {}}
-        theme="github-light"
-        onThemeChange={() => {}}
-        shape="square"
-        onShapeChange={() => {}}
-        days={366}
-        onDaysChange={() => {}}
-      />,
-    );
-    expect(screen.getByLabelText(/token/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/layout/i)).toBeInTheDocument();
+  it('renders a geometry toggle with rectangular and square options', () => {
+    renderPanel();
+    const toggle = screen.getByTestId('geometry-toggle');
+    expect(toggle).toBeInTheDocument();
+    const options = toggle.querySelectorAll('option');
+    expect(options).toHaveLength(2);
+    expect(options[0]!.textContent).toMatch(/rectangular/i);
+    expect(options[1]!.textContent).toMatch(/square/i);
+  });
+
+  it('shows the days input only in rectangular mode', () => {
+    renderPanel({ geometry: 'rectangular' });
     expect(screen.getByLabelText(/history/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/theme/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/shape/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/size/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the size input only in square mode', () => {
+    renderPanel({ geometry: 'square' });
+    expect(screen.getByLabelText(/size/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/history/i)).not.toBeInTheDocument();
+  });
+
+  it('bounds the days input between 1 and 366', () => {
+    renderPanel({ geometry: 'rectangular' });
+    const input = screen.getByLabelText(/history/i) as HTMLInputElement;
+    expect(input.min).toBe('1');
+    expect(input.max).toBe('366');
+  });
+
+  it('bounds the size input between 1 and 19', () => {
+    renderPanel({ geometry: 'square' });
+    const input = screen.getByLabelText(/size/i) as HTMLInputElement;
+    expect(input.min).toBe('1');
+    expect(input.max).toBe('19');
   });
 
   it('calls callbacks when values change', () => {
-    const tokenSpy = (v: string) => expect(v).toBe('tok');
-    const usernameSpy = (v: string) => expect(v).toBe('stefano');
-    const layoutSpy = (v: string) => expect(v).toBe('13-by-4');
-    const themeSpy = (v: string) => expect(v).toBe('github-dark');
-    const shapeSpy = (v: CellShape) => expect(v).toBe('circle');
+    const calls: string[] = [];
+    renderPanel({
+      onGeometryChange: (v) => calls.push(`geometry:${v}`),
+      onThemeChange: (v) => calls.push(`theme:${v}`),
+      onShapeChange: (v) => calls.push(`shape:${v}`),
+    });
 
-    render(
-      <ConfigPanel
-        token=""
-        onTokenChange={tokenSpy}
-        username=""
-        onUsernameChange={usernameSpy}
-        layout="n-by-7"
-        onLayoutChange={layoutSpy}
-        weeks={52}
-        onWeeksChange={() => {}}
-        theme="github-light"
-        onThemeChange={themeSpy}
-        shape="square"
-        onShapeChange={shapeSpy}
-        days={366}
-        onDaysChange={() => {}}
-      />,
-    );
-
-    fireEvent.change(screen.getByLabelText(/token/i), { target: { value: 'tok' } });
-    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: 'stefano' } });
-    fireEvent.change(screen.getByLabelText(/layout/i), { target: { value: '13-by-4' } });
+    fireEvent.change(screen.getByTestId('geometry-toggle'), { target: { value: 'square' } });
     fireEvent.change(screen.getByLabelText(/theme/i), { target: { value: 'github-dark' } });
     fireEvent.change(screen.getByLabelText(/shape/i), { target: { value: 'circle' } });
 
-    expect(tokenSpy).toBeDefined();
-    expect(usernameSpy).toBeDefined();
-    expect(layoutSpy).toBeDefined();
-    expect(themeSpy).toBeDefined();
-    expect(shapeSpy).toBeDefined();
+    expect(calls).toEqual(['geometry:square', 'theme:github-dark', 'shape:circle']);
   });
 
-  it('calls onWeeksChange when the weeks input changes', () => {
-    const weeksSpy = (v: number) => expect(v).toBe(26);
-    render(
-      <ConfigPanel
-        token=""
-        onTokenChange={() => {}}
-        username=""
-        onUsernameChange={() => {}}
-        layout="13-by-4"
-        onLayoutChange={() => {}}
-        weeks={52}
-        onWeeksChange={weeksSpy}
-        theme="github-light"
-        onThemeChange={() => {}}
-        shape="square"
-        onShapeChange={() => {}}
-        days={366}
-        onDaysChange={() => {}}
-      />,
-    );
-    fireEvent.change(screen.getByLabelText(/weeks/i), { target: { value: '26' } });
-    expect(weeksSpy).toBeDefined();
-  });
-
-  it('calls onDaysChange when the days back input changes', () => {
-    const daysSpy = (v: number) => expect(v).toBe(30);
-    render(
-      <ConfigPanel
-        token=""
-        onTokenChange={() => {}}
-        username=""
-        onUsernameChange={() => {}}
-        layout="n-by-7"
-        onLayoutChange={() => {}}
-        weeks={52}
-        onWeeksChange={() => {}}
-        theme="github-light"
-        onThemeChange={() => {}}
-        shape="square"
-        onShapeChange={() => {}}
-        days={366}
-        onDaysChange={daysSpy}
-      />,
-    );
+  it('calls onDaysChange when the history input changes', () => {
+    let received = 0;
+    renderPanel({ geometry: 'rectangular', onDaysChange: (v) => (received = v) });
     fireEvent.change(screen.getByLabelText(/history/i), { target: { value: '30' } });
-    expect(daysSpy).toBeDefined();
+    expect(received).toBe(30);
+  });
+
+  it('calls onSizeChange when the size input changes', () => {
+    let received = 0;
+    renderPanel({ geometry: 'square', onSizeChange: (v) => (received = v) });
+    fireEvent.change(screen.getByLabelText(/size/i), { target: { value: '8' } });
+    expect(received).toBe(8);
   });
 });

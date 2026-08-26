@@ -89,14 +89,14 @@ describe('renderText', () => {
     expect(out).toContain('Grid (1×2, n-by-7):');
   });
 
-  it('uses n-by-7 layout by default and 13-by-4 when requested', async () => {
+  it('uses a rectangular 365-day chart by default and keeps deprecated layouts working', async () => {
     await renderText('octocat', { token: 'tok' });
-    expect(coreMock.computeGrid).toHaveBeenCalledWith(
-      days,
-      expect.objectContaining({ type: 'n-by-7' }),
-    );
+    expect(coreMock.computeGrid).toHaveBeenCalledWith(days, { shape: 'rectangular', days: 365 });
     await renderText('octocat', { token: 'tok', layout: '13-by-4' });
-    expect(coreMock.computeGrid).toHaveBeenLastCalledWith(days, { type: '13-by-4' });
+    expect(coreMock.computeGrid).toHaveBeenLastCalledWith(days, {
+      type: '13-by-4',
+      weeks: undefined,
+    });
   });
 
   it('applies the weeks option for n-by-7 layout', async () => {

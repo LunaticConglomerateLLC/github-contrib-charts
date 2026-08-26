@@ -1,6 +1,7 @@
 import { graphql } from '@octokit/graphql';
-import type { ContributionDay, ContributionLevel, DateRange } from './types.js';
+import type { ChartShapeConfig, ContributionDay, ContributionLevel, DateRange } from './types.js';
 import { AuthenticationError, FetchError, NetworkError, RateLimitError, UserNotFoundError } from './errors.js';
+import { displayWindow, shapeDayCount } from './grid.js';
 
 const MAX_DAYS = 366;
 
@@ -22,6 +23,35 @@ interface RawResponse {
       totalPullRequestReviewContributions: number;
     };
   };
+}
+
+/**
+ * Derives the fetch window for a chart shape, ending at `anchor`
+ * (defaults to today UTC midnight). Rectangular covers `days` days,
+ * square covers `size²` days.
+ *
+ * An explicit `override` range is used as-is when its day-span matches
+ * the shape window; a mismatching or invalid override throws a RangeError.
+ */
+export function deriveDateRange(
+  config: ChartShapeConfig,
+  anchor: Date = new Date(),
+  override?: DateRange,
+): DateRange {
+  if (override !== undefined) {
+    const { from, to } = override;
+    if (!(from instanceof Date) || !(to instanceof Date) || isNaN(from.getTime()) || isNaN(to.getTime())) {
+      throw new RangeError('dateRange.from and dateRange.to must be valid dates');
+    }
+    if (from > to) throw new RangeError('dateRange.from must be before dateRange.to');
+    const expected = shapeDayCount(config);
+    const actual = Math.round((to.getTime() - from.getTime()) / 86_400_000);
+    if (actual !== expected) {
+      throw new RangeError(`dateRange override must cover ${expected} days to match this chart's window`);
+    }
+    return override;
+  }
+  return displayWindow(config, anchor);
 }
 
 /**
@@ -78,7 +108,7 @@ export async function fetchContributions(
   if (!coll) throw new FetchError('GitHub returned an unexpected response shape.');
 
   // Distribute the aggregate totals across the returned days for type breakdowns.
-  const days = coll.contributionCalendar.weeks.flatMap((week) => week.contributionDays).map((d) => ({
+  const fetched = coll.contributionCalendar.weeks.flatMap((week) => week.contributionDays).map((d) => ({
     date: new Date(`${d.date}T00:00:00Z`),
     contributionCount: d.contributionCount,
     contributionLevel: normalizeLevel(d.contributionLevel),
@@ -88,10 +118,34 @@ export async function fetchContributions(
     reviewCount: 0,
   }));
 
+  const byDate = new Map(fetched.map((d) => [d.date.toISOString().slice(0, 10), d]));
+
+  // Normalize to the exact requested window: pad missing dates with empty
+  // days and drop anything outside [from, to).
+  const days: ContributionDay[] = Array.from({ length: spanDays }, (_, i) => {
+    const date = new Date(from.getTime() + i * 86_400_000);
+    return byDate.get(date.toISOString().slice(0, 10)) ?? {
+      date,
+      contributionCount: 0,
+      contributionLevel: 'NONE' as ContributionLevel,
+      commitCount: 0,
+      pullRequestCount: 0,
+      issueCount: 0,
+      reviewCount: 0,
+    };
+  });
+
   // Map aggregate totals to the most-recent day with activity (simplified breakdown).
-  const total = days.length;
-  if (total > 0) {
-    const anchor = days[total - 1]!;
+  let anchorIndex = -1;
+  for (let i = days.length - 1; i >= 0; i--) {
+    if (days[i]!.contributionCount > 0) {
+      anchorIndex = i;
+      break;
+    }
+  }
+  if (anchorIndex === -1 && days.length > 0) anchorIndex = days.length - 1;
+  if (anchorIndex >= 0) {
+    const anchor = days[anchorIndex]!;
     anchor.commitCount = coll.totalCommitContributions;
     anchor.pullRequestCount = coll.totalPullRequestContributions;
     anchor.issueCount = coll.totalIssueContributions;

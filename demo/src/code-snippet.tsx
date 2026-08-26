@@ -1,24 +1,30 @@
 export interface SnippetConfig {
   username: string;
-  layout: string;
-  weeks?: number;
+  /** Defaults to 'rectangular'. */
+  geometry?: 'rectangular' | 'square';
+  days?: number;
+  size?: number;
   theme: string;
   shape: string;
-  days?: number;
 }
 
 export function buildInstallCommand(): string {
   return 'npm install @wearelunatic/github-contrib-charts';
 }
 
-export function buildSnippet({ username, layout, weeks = 52, theme, shape, days = 366 }: SnippetConfig): string {
-  // N×7 is day-driven: weeks derived from days; 13×4 is week-driven: days = weeks*7
-  const derivedWeeks = Math.max(1, Math.ceil(days / 7));
-  const gridLayout =
-    layout === '13-by-4'
-      ? 'gridLayout={{ type: "13-by-4" }}'
-      : `gridLayout={{ type: "n-by-7", weeks: ${derivedWeeks} }}`;
-  const fetchDays = layout === '13-by-4' ? weeks * 7 : days;
+export function buildSnippet({
+  username,
+  geometry = 'rectangular',
+  days = 365,
+  size = 10,
+  theme,
+  shape,
+}: SnippetConfig): string {
+  const fetchDays = geometry === 'square' ? size * size : days;
+  const shapeProps =
+    geometry === 'square'
+      ? ['shape="square"', `      size={${size}}`]
+      : ['shape="rectangular"', `      days={${days}}`];
   return [
     'import { fetchContributions, ContributionChart } from "@wearelunatic/github-contrib-charts";',
     '',
@@ -41,7 +47,8 @@ export function buildSnippet({ username, layout, weeks = 52, theme, shape, days 
     '    <ContributionChart',
     '      data={days}',
     '      autoFetch={false}',
-    `      ${gridLayout}`,
+    `      ${shapeProps[0]}`,
+    `      ${shapeProps[1]}`,
     `      colorTheme="${theme}"`,
     `      cellShape="${shape}"`,
     '    />',

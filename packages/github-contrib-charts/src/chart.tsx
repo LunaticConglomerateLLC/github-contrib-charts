@@ -1,7 +1,7 @@
 import { useMemo, useState, type CSSProperties, type JSX } from 'react';
 import { computeGrid } from './grid.js';
 import { computeStats } from './stats.js';
-import type { ContributionDay, ContributionGrid, GridCell, GridLayoutConfig } from './types.js';
+import type { ChartShapeConfig, ContributionDay, ContributionGrid, GridCell, GridLayoutConfig } from './types.js';
 import { colorFor, GITHUB_DARK, GITHUB_LIGHT } from './theme.js';
 import type { CellShape, ColorStop, ThemePreset } from './ui-types.js';
 import { CellShapeRenderer } from './shapes.js';
@@ -13,7 +13,18 @@ const GAP = 3;
 export interface ContributionChartProps {
   data?: ContributionDay[];
   autoFetch?: boolean;
-  gridLayout: GridLayoutConfig;
+  /** Chart shape. Defaults to 'rectangular'. Takes precedence over gridLayout. */
+  shape?: 'rectangular' | 'square';
+  /** Day count for the rectangular shape (1–366). Defaults to 365. */
+  days?: number;
+  /** Edge size for the square shape (1–19). Defaults to 10. */
+  size?: number;
+  /**
+   * Legacy layout config.
+   *
+   * @deprecated Use `shape`/`days`/`size` instead.
+   */
+  gridLayout?: GridLayoutConfig;
   cellShape: CellShape;
   colorTheme: ThemePreset | ColorStop[];
   title?: string;
@@ -28,6 +39,9 @@ export interface ContributionChartProps {
 export function ContributionChart({
   data,
   autoFetch = true,
+  shape,
+  days,
+  size,
   gridLayout,
   cellShape,
   colorTheme,
@@ -38,14 +52,25 @@ export function ContributionChart({
   className,
   style,
 }: ContributionChartProps): JSX.Element {
-  const days = data ?? [];
-  if (!autoFetch && days.length === 0) throw new RangeError('data must not be empty when autoFetch is disabled');
+  const daysList = data ?? [];
+  if (!autoFetch && daysList.length === 0) throw new RangeError('data must not be empty when autoFetch is disabled');
 
   const stops: ColorStop[] =
     typeof colorTheme === 'string' ? (colorTheme === 'github-dark' ? GITHUB_DARK : GITHUB_LIGHT) : colorTheme;
 
-  const grid: ContributionGrid = useMemo(() => computeGrid(days, gridLayout), [days, gridLayout]);
-  const stats = useMemo(() => computeStats(days), [days]);
+  const shapeConfig: ChartShapeConfig = useMemo(() => {
+    if (gridLayout && !shape) {
+      console.warn(
+        '[github-contrib-charts] gridLayout is deprecated; use the shape/days/size props instead.',
+      );
+      return gridLayout;
+    }
+    if (shape === 'square') return { shape: 'square', size };
+    return { shape: shape ?? 'rectangular', days };
+  }, [shape, days, size, gridLayout]);
+
+  const grid: ContributionGrid = useMemo(() => computeGrid(daysList, shapeConfig), [daysList, shapeConfig]);
+  const stats = useMemo(() => computeStats(daysList), [daysList]);
 
   const width = grid.columns * (CELL_SIZE + GAP) + GAP;
   const height = grid.rows * (CELL_SIZE + GAP) + GAP;

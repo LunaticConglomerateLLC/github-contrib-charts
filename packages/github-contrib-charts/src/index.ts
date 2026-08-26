@@ -11,13 +11,13 @@ export * from './errors.js';
  * Fetches contribution data for a GitHub user over a date range using the GitHub GraphQL API.
  * @see {@link fetchContributions}
  */
-export { fetchContributions } from './fetch.js';
+export { fetchContributions, deriveDateRange } from './fetch.js';
 
 /**
  * Computes a contribution grid from daily data using the specified layout strategy.
  * @see {@link computeGrid}
  */
-export { computeGrid } from './grid.js';
+export { computeGrid, resolveShapeConfig, shapeDayCount, displayWindow } from './grid.js';
 
 /**
  * Computes aggregate statistics from contribution data.
@@ -52,3 +52,4 @@ export type { CellShapeRendererProps } from './shapes.js';
 export { colorFor, GITHUB_LIGHT, GITHUB_DARK, resolveStops } from './theme.js';
 export type { ThemePreset, ColorStop, CellShape, ChartConfig } from './ui-types.js';
 export type { ThemeOption } from './theme.js';
+export { validateChartShapeConfig, validateDays, validateSize } from './errors.js';

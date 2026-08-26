@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { writeFile } from 'node:fs/promises';
 import {
   AuthenticationError,
@@ -9,18 +9,38 @@ import {
 import { renderText } from './render-text.js';
 import { renderPng } from './render-png.js';
 import type { CliOptions } from './types.js';
+import { gridShapeConfig } from './resolve.js';
 
 function stderr(message: string): void {
   process.stderr.write(`${message}\n`);
 }
 
+const GLYPH_SHAPES = ['circle', 'square', 'rounded-rect'] as const;
+
 function toCliOptions(raw: Record<string, unknown>): CliOptions {
+  const shapeRaw = typeof raw.shape === 'string' ? raw.shape : undefined;
+  // --shape doubles as a geometry alias for rectangular/square values.
+  const geometryAlias =
+    shapeRaw === 'rectangular' || shapeRaw === 'square' ? shapeRaw : undefined;
+  const glyph = shapeRaw !== undefined && (GLYPH_SHAPES as readonly string[]).includes(shapeRaw)
+    ? (shapeRaw as (typeof GLYPH_SHAPES)[number])
+    : undefined;
   return {
     token: typeof raw.token === 'string' ? raw.token : undefined,
     output: typeof raw.output === 'string' ? raw.output : './output',
-    weeks: raw.weeks !== undefined ? Number(raw.weeks) : 52,
-    layout: raw.layout === '13-by-4' ? '13-by-4' : 'n-by-7',
-    shape: (raw.shape as CliOptions['shape']) ?? 'square',
+    geometry:
+      typeof raw.geometry === 'string'
+        ? (raw.geometry as CliOptions['geometry'])
+        : geometryAlias,
+    days: raw.days !== undefined ? Number(raw.days) : undefined,
+    size: raw.size !== undefined ? Number(raw.size) : undefined,
+    weeks: raw.weeks !== undefined ? Number(raw.weeks) : undefined,
+    layout: raw.layout === '13-by-4' ? '13-by-4' : raw.layout === 'n-by-7' ? 'n-by-7' : undefined,
+    shape: glyph,
+    cellShape:
+      typeof raw['cell-shape'] === 'string'
+        ? (raw['cell-shape'] as CliOptions['cellShape'])
+        : (glyph ?? 'square'),
     theme: raw.theme === 'github-dark' ? 'github-dark' : 'github-light',
     resolution: typeof raw.resolution === 'string' ? raw.resolution : '800x600',
   };
@@ -40,6 +60,7 @@ export async function run(username: string, raw: Record<string, unknown>): Promi
   const options = toCliOptions(raw);
 
   try {
+    gridShapeConfig(options); // eager validation: invalid shape flags exit 1 before any I/O
     if (formats.includes('text')) {
       const text = await renderText(username, options);
       process.stdout.write(`${text}\n`);
@@ -51,6 +72,10 @@ export async function run(username: string, raw: Record<string, unknown>): Promi
     }
     return 0;
   } catch (err) {
+    if (err instanceof RangeError) {
+      stderr(err.message);
+      return 1;
+    }
     if (err instanceof AuthenticationError) {
       stderr('Authentication failed. Check your GitHub token.');
       return 2;
@@ -87,11 +112,21 @@ export function buildCli(): Command {
     .option('--token <token>', 'GitHub personal access token (defaults to GITHUB_TOKEN env)')
     .option('--format <format>', "output format: 'text', 'png', or 'both' (default 'both')", 'both')
     .option('--output <path>', 'output path prefix for the PNG file (default ./output)')
-    .option('--weeks <n>', 'number of weeks for an n-by-7 grid (default 52)')
-    .option('--layout <layout>', "grid layout: 'n-by-7' or '13-by-4' (default n-by-7)")
-    .option('--shape <shape>', "cell shape: 'circle', 'square', or 'rounded-rect' (default square)")
+    .option(
+      '--geometry <geometry>',
+      "chart geometry: 'rectangular' or 'square' (default rectangular)",
+    )
+    .option('--days <n>', 'days of history for the rectangular geometry, 1-366 (default 365)')
+    .option('--size <n>', 'edge size N for the square geometry, N x N days, 1-19 (default 10)')
+    .option('--cell-shape <shape>', "cell glyph shape: 'circle', 'square', or 'rounded-rect' (default square)")
+    .option(
+      '--shape <shape>',
+      "deprecated: alias of --geometry for 'rectangular'/'square', otherwise cell glyph shape",
+    )
     .option('--theme <theme>', "theme: 'github-light' or 'github-dark' (default github-light)")
     .option('--resolution <WxH>', 'PNG resolution (default 800x600)')
+    .addOption(new Option('--weeks <n>', 'deprecated: use --days instead').hideHelp())
+    .addOption(new Option('--layout <layout>', 'deprecated: use --geometry instead').hideHelp())
     .action(async (username: string, opts: Record<string, unknown>) => {
       process.exitCode = await run(username, opts);
     });
